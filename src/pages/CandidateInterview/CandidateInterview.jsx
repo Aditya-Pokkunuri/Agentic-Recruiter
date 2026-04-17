@@ -9,6 +9,29 @@ export default function CandidateInterview() {
     { sender: 'Candidate', text: "Yes, I'm ready." }
   ]);
 
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    async function setupCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.error("Error accessing webcam:", err);
+      }
+    }
+    setupCamera();
+
+    return () => {
+      // Cleanup: stop all tracks when component unmounts
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
   // Simulate AI talking
   useEffect(() => {
     if (state.handoff_active) return;
@@ -28,13 +51,20 @@ export default function CandidateInterview() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'var(--font-sans)' }}>
       {/* Header */}
-      <header style={{ padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', borderBottom: '1px solid var(--border-subtle)' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <div style={{ width: '32px', height: '32px', background: 'var(--brand-blue)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <header style={{ padding: '1rem 2rem', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+           <div style={{ width: '32px', height: '32px', background: 'var(--brand-blue)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'white', fontWeight: 800 }}>Q</span>
           </div>
           <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Senior Backend Engineer - Technical Round</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Senior Backend Engineer - Technical Round</h2>
+              {state.isTrained && (
+                <span style={{ fontSize: '0.65rem', background: 'rgba(139, 92, 246, 0.1)', color: 'var(--tier-amber)', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid rgba(139, 92, 246, 0.2)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Persona Sync Active
+                </span>
+              )}
+            </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <ShieldCheck size={14} color="var(--brand-blue)" /> Proctoring Active • End-to-End Encrypted
             </p>
@@ -51,9 +81,15 @@ export default function CandidateInterview() {
         {/* Left Side (Visuals) */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#020617', padding: '2rem', position: 'relative', overflow: 'hidden' }}>
 
-          {/* Main Candidate Avatar Feed */}
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', zIndex: 1 }}>
-            <img src="/candidate_feed.png" alt="Candidate Feed" style={{ width: '450px', height: '450px', objectFit: 'cover', borderRadius: '50%', boxShadow: '0 20px 60px rgba(0,0,0,0.6)', border: '8px solid rgba(255,255,255,0.05)' }} />
+          {/* Main Candidate Video Feed - Full Screen */}
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: '#0f172a', zIndex: 1 }}>
+            <video 
+              ref={videoRef}
+              autoPlay 
+              playsInline 
+              muted 
+              style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
+            />
           </div>
 
           <div style={{ position: 'absolute', top: '1rem', left: '1rem', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', backdropFilter: 'blur(4px)', zIndex: 5 }}>
@@ -117,6 +153,11 @@ export default function CandidateInterview() {
 
           <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Live Transcript</h3>
+            {state.isTrained && (
+              <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: 'rgba(14,165,233, 0.1)', color: 'var(--brand-blue)', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <Sparkles size={12} /> Persona Sync: ${state.personaBlueprint?.name || 'Active'}
+              </div>
+            )}
             {state.handoff_active && (
               <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--tier-red)', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 🚨 A human recruiter has joined your session.
@@ -140,6 +181,25 @@ export default function CandidateInterview() {
               </div>
             ))}
           </div>
+
+          {/* Cognitive Trace Panel */}
+          {state.isTrained && (
+            <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
+              <h4 style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <BrainCircuit size={14} color="var(--brand-blue)" /> Sarah's Cognitive Trace
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ padding: '0.75rem', background: 'rgba(14, 165, 233, 0.05)', borderRadius: '8px', border: '1px solid rgba(14, 165, 233, 0.1)' }}>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--brand-blue)', fontWeight: 700, marginBottom: '0.2rem' }}>HEURISTIC ALIGNMENT</p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Using your <strong>"${state.personaAnswers.q5?.substring(0, 20) || 'Scan Metrics'}..."</strong> screening logic.</p>
+                </div>
+                <div style={{ padding: '0.75rem', background: 'rgba(14, 165, 233, 0.05)', borderRadius: '8px', border: '1px solid rgba(14, 165, 233, 0.1)' }}>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--brand-blue)', fontWeight: 700, marginBottom: '0.2rem' }}>TONE TRACKING</p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Mirroring: <strong>"${state.personaAnswers.q7?.substring(0, 20) || 'Natural Style'}..."</strong></p>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
 
