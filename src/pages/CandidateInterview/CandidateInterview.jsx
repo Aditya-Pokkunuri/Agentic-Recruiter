@@ -66,7 +66,6 @@ export default function CandidateInterview() {
 
     speech.onResult = (text, isFinal) => {
       if (isFinal) {
-        // Prevent duplicate finals
         if (text === lastFinalRef.current) return;
         lastFinalRef.current = text;
         
@@ -79,12 +78,13 @@ export default function CandidateInterview() {
           isFinal: true
         };
         setTranscript(prev => [...prev, msg]);
-        
-        // Send to recruiter tab via RoomService
         roomService.sendTranscript(text, 'Candidate', true, false);
-        
-        // Also save to context for persistence
         dispatch({ type: ACTIONS.ADD_TRANSCRIPT_MESSAGE, payload: msg });
+
+        // AUTOMATIC RESPONSE TRIGGER
+        if (!state.handoff_active) {
+          handleAIStep(text);
+        }
       } else {
         setInterimText(text);
       }
@@ -106,86 +106,106 @@ export default function CandidateInterview() {
     };
   }, [dispatch, ACTIONS]);
 
-  // Listen for AI responses from the recruiter tab
-  useEffect(() => {
-    const speechInstance = new AITwinService();
-    speechInstance.init({
-      userName: 'Sarah',
-      candidateName: 'Arjun Mehta'
-    });
-    aiRef.current = speechInstance;
+  const handleSpeak = (text, originalMsg) => {
+    if (!window.speechSynthesis) {
+      setTranscript(prev => [...prev, originalMsg]);
+      dispatch({ type: ACTIONS.ADD_TRANSCRIPT_MESSAGE, payload: originalMsg });
+      return;
+    }
 
-    const handleSpeak = (text, originalMsg) => {
-      if (!window.speechSynthesis) {
-        // Fallback for browsers that don't support speech
-        setTranscript(prev => [...prev, originalMsg]);
-        dispatch({ type: ACTIONS.ADD_TRANSCRIPT_MESSAGE, payload: originalMsg });
-        return;
-      }
+    setAiThinking(true);
+    setAiSpeaking(false);
+    setStreamingAIResponse('');
+    window.speechSynthesis.cancel();
 
-      setAiThinking(true);
-      setAiSpeaking(false);
-      setStreamingAIResponse('');
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => v.name.includes('Google UK English Female') || v.name.includes('Samantha') || v.female);
+    if (preferredVoice) utterance.voice = preferredVoice;
+    
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
 
-      // Stop any current speech
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Select a nice female voice if available
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(v => v.name.includes('Google UK English Female') || v.name.includes('Samantha') || v.female);
-      if (preferredVoice) utterance.voice = preferredVoice;
-      
-      utterance.rate = 0.95; // Slightly slower for clarity
-      utterance.pitch = 1.0;
-
-      utterance.onstart = () => {
-        setAiThinking(false);
-        setAiSpeaking(true);
-      };
-
-      // Perfect word-sync using browser events
-      utterance.onboundary = (event) => {
-        if (event.name === 'word') {
-          const spokenText = text.substring(0, event.charIndex + event.charLength);
-          setStreamingAIResponse(spokenText);
-        }
-      };
-
-      utterance.onend = () => {
-        setAiSpeaking(false);
-        setAiThinking(false);
-        setStreamingAIResponse('');
-        
-        // Add to permanent transcript only after speaking
-        setTranscript(prev => [...prev, originalMsg]);
-        dispatch({ type: ACTIONS.ADD_TRANSCRIPT_MESSAGE, payload: originalMsg });
-      };
-
-      utterance.onerror = () => {
-        setAiSpeaking(false);
-        setAiThinking(false);
-        setTranscript(prev => [...prev, originalMsg]);
-        dispatch({ type: ACTIONS.ADD_TRANSCRIPT_MESSAGE, payload: originalMsg });
-      };
-
-      // Start speaking immediately
-      window.speechSynthesis.speak(utterance);
+    utterance.onstart = () => {
+      setAiThinking(false);
+      setAiSpeaking(true);
     };
 
+    utterance.onboundary = (event) => {
+      if (event.name === 'word') {
+        const spokenText = text.substring(0, event.charIndex + event.charLength);
+        setStreamingAIResponse(spokenText);
+      }
+    };
+
+    utterance.onend = () => {
+      setAiSpeaking(false);
+      setAiThinking(false);
+      setStreamingAIResponse('');
+      setTranscript(prev => [...prev, originalMsg]);
+      dispatch({ type: ACTIONS.ADD_TRANSCRIPT_MESSAGE, payload: originalMsg });
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleAIStep = async (text) => {
+    if (!aiRef.current) return;
+    setAiThinking(true);
+    const response = await aiRef.current.getResponse(text);
+    if (response) {
+      const aiMsg = { id: `ai-${Date.now()}`, sender: 'Sarah', text: response, timestamp: Date.now(), isFinal: true, isAI: true };
+      handleSpeak(response, aiMsg);
+      roomService.sendAIResponse(response);
+    }
+  };
+
+  // Initialize Autonomous AI Twin on Candidate Side
+  useEffect(() => {
+    const ai = new AITwinService();
+    ai.init({
+      personaAnswers: state.personaAnswers,
+      personaBlueprint: state.personaBlueprint,
+      knowledgeModules: state.knowledgeModules,
+      userName: 'Sarah',
+      candidateName: 'Candidate'
+    });
+    aiRef.current = ai;
+
+    // Initial Greeting
+    setTimeout(async () => {
+      setAiThinking(true);
+      const greeting = await ai.getGreeting();
+      if (greeting) {
+        const msg = { id: `ai-greet`, sender: 'Sarah', text: greeting, timestamp: Date.now(), isFinal: true, isAI: true };
+        handleSpeak(greeting, msg);
+        roomService.sendAIResponse(greeting);
+      }
+    }, 2000);
+
+    // 2. Local AI Response Logic (Candidate hears self -> AI responds)
+    const unsubCandidateSpeech = roomService.on('transcript', async (data) => {
+      // If we hear the candidate speak and Sarah isn't taken over
+      if (data.sender === 'Candidate' && data.isFinal && !state.handoff_active) {
+        // Debounce / Wait for candidate to stop
+        if (candidatePendingRef.current) clearTimeout(candidatePendingRef.current);
+        candidatePendingRef.current = setTimeout(async () => {
+          if (data.text === lastFinalRef.current) return;
+          lastFinalRef.current = data.text;
+
+          setAiThinking(true);
+          const response = await aiRef.current.getResponse(data.text);
+          if (response) {
+            const aiMsg = { id: `ai-${Date.now()}`, sender: 'Sarah', text: response, timestamp: Date.now(), isFinal: true, isAI: true };
+            handleSpeak(response, aiMsg);
+            roomService.sendAIResponse(response);
+          }
+        }, 1500);
+      }
+    });
+
     const unsubAI = roomService.on('aiResponse', (data) => {
-      const msg = {
-        id: data.id,
-        sender: 'Sarah',
-        text: data.text,
-        timestamp: data.timestamp,
-        isFinal: true,
-        isAI: true
-      };
-      
-      // Start the voice/reveal process instead of adding to transcript immediately
-      handleSpeak(data.text, msg);
+      // Only handle if it's external (e.g. recruiter sending a specific AI override)
     });
 
     const unsubTakeover = roomService.on('takeover', () => {
@@ -214,7 +234,7 @@ export default function CandidateInterview() {
     });
 
     // Also receive recruiter's spoken transcript
-    const unsubTranscript = roomService.on('transcript', (data) => {
+    const unsubRecruiterSpeech = roomService.on('transcript', (data) => {
       if (data.sender !== 'Candidate') {
         const msg = {
           id: data.id,
@@ -234,9 +254,11 @@ export default function CandidateInterview() {
       unsubAI();
       unsubTakeover();
       unsubTyped();
-      unsubTranscript();
+      unsubCandidateSpeech();
+      unsubRecruiterSpeech();
+      if (aiRef.current) aiRef.current.destroy();
     };
-  }, [dispatch, ACTIONS]);
+  }, [dispatch, ACTIONS, state.handoff_active]);
 
   // Mic toggle
   const toggleMic = useCallback(() => {

@@ -9,7 +9,7 @@ import AITwinService from '../../services/AITwinService';
 export default function LiveInterviews() {
   const data = useData();
   const { state, dispatch, ACTIONS } = useDemo();
-  
+
   const [transcript, setTranscript] = useState([]);
   const [typedMessage, setTypedMessage] = useState('');
   const [isMicOn, setIsMicOn] = useState(false);
@@ -56,26 +56,26 @@ export default function LiveInterviews() {
   // Handle Switching Sessions
   const handleSwitchSession = (session) => {
     if (activeSession?.code === session.code) return;
-    
+
     // Clear current monitor
     setTranscript([]);
     setRubricScore(0);
     setSignals([]);
     setAiStatus('initializing');
-    
+
     // Switch Room
     roomService.leave();
     roomService.joinRoom(session.code, 'recruiter');
     dispatch({ type: ACTIONS.SET_ROOM, payload: session.code });
     setActiveSession(session);
-    
+
     // Re-init AI Twin for this context if needed
     initAITwin(session);
   };
 
   const initAITwin = (session) => {
     if (aiRef.current) aiRef.current.destroy();
-    
+
     const ai = new AITwinService();
     aiRef.current = ai;
 
@@ -104,49 +104,48 @@ export default function LiveInterviews() {
     }
   }, [state.roomCode]);
 
-  // Listen for candidate transcript
+  // Listen for transcript events (both Candidate and AI)
   useEffect(() => {
     const unsubTranscript = roomService.on('transcript', (data) => {
+      // Add to UI transcript
+      const msg = {
+        id: data.id,
+        sender: data.sender,
+        text: data.text,
+        timestamp: data.timestamp,
+        isFinal: data.isFinal,
+        isAI: data.isAI
+      };
+
+      // Update local transcript state if it's new
+      setTranscript(prev => {
+        if (prev.find(m => m.id === data.id)) return prev;
+        return [...prev, msg];
+      });
+
+      // If candidate spoke, update logic for the monitor
       if (data.sender === 'Candidate' && data.isFinal) {
-        const msg = {
-          id: data.id,
-          sender: 'Candidate',
-          text: data.text,
-          timestamp: data.timestamp,
-          isFinal: true
-        };
-        setTranscript(prev => [...prev, msg]);
-
-        // Update rubric score
         setRubricScore(prev => Math.min(100, prev + Math.floor(Math.random() * 8 + 3)));
+        addSignal(`Candidate response received: "${data.text.substring(0, 30)}..."`);
+      }
 
-        if (aiRef.current?.isActive && !state.handoff_active) {
-          if (candidatePendingRef.current) clearTimeout(candidatePendingRef.current);
-          candidatePendingRef.current = setTimeout(async () => {
-            if (data.text === lastProcessedRef.current) return;
-            lastProcessedRef.current = data.text;
-            
-            setAiStatus('thinking');
-            const response = await aiRef.current.getResponse(data.text);
-            if (response && aiRef.current?.isActive) {
-              const aiMsg = {
-                id: `ai-${Date.now()}`,
-                sender: 'Sarah',
-                text: response,
-                timestamp: Date.now(),
-                isAI: true
-              };
-              setTranscript(prev => [...prev, aiMsg]);
-              roomService.sendAIResponse(response);
-              setAiStatus('listening');
-            }
-          }, 1500);
-        }
+      // If AI spoke, update status
+      if (data.isAI) {
+        setAiStatus('listening');
+        addSignal('AI Twin responded.');
       }
     });
 
-    return () => unsubTranscript();
-  }, [state.handoff_active, activeSession]);
+    const unsubAI = roomService.on('aiResponse', (data) => {
+      // Monitor AI responses coming from candidate side
+      setAiStatus('responding');
+    });
+
+    return () => {
+      unsubTranscript();
+      unsubAI();
+    };
+  }, [activeSession]);
 
   // Add a signal
   const addSignal = useCallback((text) => {
@@ -208,7 +207,7 @@ export default function LiveInterviews() {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '2rem', height: 'calc(100vh - 120px)' }}>
-      
+
       {/* Session Hub Sidebar */}
       <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
@@ -221,7 +220,7 @@ export default function LiveInterviews() {
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', marginTop: '2rem' }}>No active interviews. Start one from the Pipeline.</p>
           )}
           {state.activeRooms.map(session => (
-            <div 
+            <div
               key={session.code}
               onClick={() => handleSwitchSession(session)}
               style={{
@@ -263,7 +262,7 @@ export default function LiveInterviews() {
               </p>
             </div>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <button 
+              <button
                 onClick={() => {
                   navigator.clipboard.writeText(activeSession.code);
                   alert('Interview Code Copied: ' + activeSession.code);
@@ -273,7 +272,7 @@ export default function LiveInterviews() {
                 <div style={{ padding: '4px', background: 'var(--brand-blue)', borderRadius: '4px', display: 'flex' }}><Send size={14} color="white" /></div>
                 Copy Code: {activeSession.code}
               </button>
-              <button 
+              <button
                 onClick={handleTakeOver}
                 style={{ background: 'white', color: 'var(--tier-red)', border: '2px solid var(--tier-red)', padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-pill)', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'all 200ms ease', fontSize: '0.9rem' }}
               >
@@ -282,227 +281,253 @@ export default function LiveInterviews() {
             </div>
           </div>
 
-      {/* Main Content */}
-      <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
-        
-        {/* Session Header */}
-        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <img src="https://api.dicebear.com/7.x/notionists/svg?seed=Arjun" alt="Candidate" style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'white', border: '2px solid var(--brand-blue)' }} />
-            <div>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Arjun Mehta</h2>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Senior Backend Engineer</span>
-            </div>
-            <span style={{ fontSize: '0.75rem', background: '#020617', color: 'var(--brand-blue)', padding: '0.25rem 0.75rem', borderRadius: '1rem', border: '1px solid #1e293b', fontWeight: 600 }}>
-              {state.handoff_active ? '👤 Human Control' : '🤖 AI Twin Active'}
-            </span>
-          </div>
-
-          {state.handoff_active ? (
-            <div style={{ background: 'var(--tier-green)', color: 'white', padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-pill)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-              ✅ Human Control Active
-            </div>
-          ) : (
-            <button 
-              onClick={handleTakeOver}
-              style={{ background: 'white', color: 'var(--tier-red)', border: '2px solid var(--tier-red)', padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-pill)', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)', transition: 'all 200ms ease', fontSize: '0.9rem' }}
-              onMouseOver={(e) => { e.currentTarget.style.background = 'var(--tier-red)'; e.currentTarget.style.color = 'white'; }}
-              onMouseOut={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = 'var(--tier-red)'; }}
-            >
-              🚨 Take Over Interview
-            </button>
-          )}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', minHeight: '550px' }}>
-          
-          {/* Transcript Panel */}
-          <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border-subtle)' }}>
-            
-            {/* AI Status Bar */}
-            <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '0.75rem', background: aiStatus === 'thinking' ? 'rgba(14, 165, 233, 0.05)' : 'transparent' }}>
-              <div style={{ 
-                width: '10px', height: '10px', borderRadius: '50%', 
-                background: aiStatus === 'deactivated' ? 'var(--text-muted)' : aiStatus === 'thinking' ? 'var(--tier-amber)' : 'var(--tier-green)',
-                animation: aiStatus === 'thinking' ? 'blink 0.8s infinite' : 'none'
-              }}></div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                {aiStatus === 'initializing' && 'Initializing AI Twin...'}
-                {aiStatus === 'listening' && 'AI Twin Listening...'}
-                {aiStatus === 'thinking' && '🧠 AI Twin Processing Response...'}
-                {aiStatus === 'deactivated' && 'AI Twin Deactivated — Human Control'}
-              </span>
-            </div>
-
-            {/* Transcript Messages */}
-            <div style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {transcript.length === 0 && (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* VIDEO FEED */}
+              <div style={{ background: '#0f172a', borderRadius: 'var(--radius-lg)', height: '240px', position: 'relative', overflow: 'hidden', border: '2px solid var(--border-subtle)' }}>
+                <div style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 10, background: 'rgba(239, 68, 68, 0.9)', color: 'white', fontSize: '0.65rem', fontWeight: 800, padding: '0.3rem 0.6rem', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '0.4rem', letterSpacing: '1px' }}>
+                  <div style={{ width: '8px', height: '8px', background: 'white', borderRadius: '50%', animation: 'pulse 1s infinite' }}></div>
+                  LIVE FEED
+                </div>
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <BrainCircuit size={40} color="var(--text-muted)" style={{ marginBottom: '1rem', opacity: 0.4 }} />
-                    <p style={{ color: 'var(--text-muted)' }}>AI Twin is preparing the interview...</p>
+                    <VideoIcon size={48} color="#334155" />
+                    <p style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.5rem' }}>Establishing secure Proctoring connection...</p>
                   </div>
                 </div>
-              )}
-              {transcript.map((msg) => (
-                <div key={msg.id} style={{ 
-                  paddingBottom: '0.75rem', 
-                  borderBottom: '1px dashed var(--border-subtle)',
-                  animation: 'fadeSlideIn 0.3s ease-out'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                    <span style={{ 
-                      fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase',
-                      color: msg.isSystem ? 'var(--tier-red)' : (msg.sender === 'Candidate' ? 'var(--text-secondary)' : 'var(--brand-blue)'),
-                      display: 'flex', alignItems: 'center', gap: '0.4rem'
-                    }}>
-                      {msg.isAI && <BrainCircuit size={12} />}
-                      {msg.isTyped && <span>⌨️</span>}
-                      {msg.isSystem && <Shield size={12} />}
-                      {msg.sender}
+              </div>
+
+              {/* Main Content */}
+              <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${activeSession.candidateName}`} alt="Candidate" style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'white', border: '2px solid var(--brand-blue)' }} />
+                    <div>
+                      <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{activeSession.candidateName}</h2>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{activeSession.role}</span>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', background: '#020617', color: 'var(--brand-blue)', padding: '0.25rem 0.75rem', borderRadius: '1rem', border: '1px solid #1e293b', fontWeight: 600 }}>
+                      {state.handoff_active ? '👤 Human Control' : '🤖 AI Twin Active'}
                     </span>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{formatTime(msg.timestamp)}</span>
                   </div>
-                  <p style={{ 
-                    fontSize: '0.95rem', lineHeight: 1.6,
-                    color: msg.isSystem ? 'var(--tier-red)' : 'var(--text-primary)',
-                    fontStyle: msg.isSystem ? 'italic' : 'normal'
-                  }}>{msg.text}</p>
                 </div>
-              ))}
-              {interimText && (
-                <div style={{ paddingBottom: '0.75rem', borderBottom: '1px dashed var(--brand-blue)' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-blue)', textTransform: 'uppercase' }}>You (speaking...)</span>
-                  <p style={{ fontSize: '0.95rem', lineHeight: 1.6, color: 'var(--brand-blue)', fontStyle: 'italic', marginTop: '0.3rem' }}>{interimText}</p>
-                </div>
-              )}
-              <div ref={transcriptEndRef} />
-            </div>
 
-            {/* Recruiter Input (after takeover) */}
-            {state.handoff_active && (
-              <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                  <button 
-                    onClick={toggleRecruiterMic}
-                    style={{ 
-                      width: '42px', height: '42px', borderRadius: '50%', border: 'none',
-                      background: isMicOn ? 'var(--tier-red)' : 'var(--brand-blue)',
-                      color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: 'all 200ms ease', flexShrink: 0
-                    }}
-                    title={isMicOn ? 'Stop speaking' : 'Start speaking'}
-                  >
-                    {isMicOn ? <MicOff size={18} /> : <Mic size={18} />}
-                  </button>
-                  <input 
-                    type="text" 
-                    value={typedMessage}
-                    onChange={(e) => setTypedMessage(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSendTyped(); }}
-                    placeholder="Type a message to the candidate..." 
-                    style={{ 
-                      flex: 1, padding: '0.7rem 1rem', borderRadius: 'var(--radius-pill)', 
-                      border: '1px solid var(--border-subtle)', background: 'var(--bg-card)',
-                      color: 'var(--text-primary)', fontSize: '0.9rem'
-                    }} 
-                  />
-                  <button 
-                    onClick={handleSendTyped}
-                    style={{ 
-                      width: '42px', height: '42px', borderRadius: '50%', border: 'none',
-                      background: 'var(--brand-blue)', color: 'white', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                      transition: 'all 200ms ease'
-                    }}
-                  >
-                    <Send size={18} />
-                  </button>
-                </div>
-                {isMicOn && (
-                  <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--tier-red)' }}>
-                    <span style={{ width: '6px', height: '6px', background: 'var(--tier-red)', borderRadius: '50%', animation: 'blink 1s infinite' }}></span>
-                    Recording — speak into your microphone
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', minHeight: '550px' }}>
+                  {/* Transcript Panel */}
+                  <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border-subtle)' }}>
+
+                    {/* AI Status Bar */}
+                    <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '0.75rem', background: aiStatus === 'thinking' ? 'rgba(14, 165, 233, 0.05)' : 'transparent' }}>
+                      <div style={{
+                        width: '10px', height: '10px', borderRadius: '50%',
+                        background: aiStatus === 'deactivated' ? 'var(--text-muted)' : aiStatus === 'thinking' ? 'var(--tier-amber)' : 'var(--tier-green)',
+                        animation: aiStatus === 'thinking' ? 'blink 0.8s infinite' : 'none'
+                      }}></div>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {aiStatus === 'initializing' && 'Initializing AI Twin...'}
+                        {aiStatus === 'listening' && 'AI Twin Listening...'}
+                        {aiStatus === 'thinking' && '🧠 AI Twin Processing Response...'}
+                        {aiStatus === 'deactivated' && 'AI Twin Deactivated — Human Control'}
+                      </span>
+                    </div>
+
+                    {/* Transcript Messages */}
+                    <div style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {transcript.length === 0 && (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <BrainCircuit size={40} color="var(--text-muted)" style={{ marginBottom: '1rem', opacity: 0.4 }} />
+                            <p style={{ color: 'var(--text-muted)' }}>AI Twin is preparing the interview...</p>
+                          </div>
+                        </div>
+                      )}
+                      {transcript.map((msg) => (
+                        <div key={msg.id} style={{
+                          paddingBottom: '0.75rem',
+                          borderBottom: '1px dashed var(--border-subtle)',
+                          animation: 'fadeSlideIn 0.3s ease-out'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                            <span style={{
+                              fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase',
+                              color: msg.isSystem ? 'var(--tier-red)' : (msg.sender === 'Candidate' ? 'var(--text-secondary)' : 'var(--brand-blue)'),
+                              display: 'flex', alignItems: 'center', gap: '0.4rem'
+                            }}>
+                              {msg.isAI && <BrainCircuit size={12} />}
+                              {msg.isTyped && <span>⌨️</span>}
+                              {msg.isSystem && <Shield size={12} />}
+                              {msg.sender}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{formatTime(msg.timestamp)}</span>
+                          </div>
+                          <p style={{
+                            fontSize: '0.95rem', lineHeight: 1.6,
+                            color: msg.isSystem ? 'var(--tier-red)' : 'var(--text-primary)',
+                            fontStyle: msg.isSystem ? 'italic' : 'normal'
+                          }}>{msg.text}</p>
+                        </div>
+                      ))}
+                      {interimText && (
+                        <div style={{ paddingBottom: '0.75rem', borderBottom: '1px dashed var(--brand-blue)' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-blue)', textTransform: 'uppercase' }}>You (speaking...)</span>
+                          <p style={{ fontSize: '0.95rem', lineHeight: 1.6, color: 'var(--brand-blue)', fontStyle: 'italic', marginTop: '0.3rem' }}>{interimText}</p>
+                        </div>
+                      )}
+                      <div ref={transcriptEndRef} />
+                    </div>
+
+                    {/* Recruiter Input (after takeover) */}
+                    {state.handoff_active && (
+                      <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                          <button
+                            onClick={toggleRecruiterMic}
+                            style={{
+                              width: '42px', height: '42px', borderRadius: '50%', border: 'none',
+                              background: isMicOn ? 'var(--tier-red)' : 'var(--brand-blue)',
+                              color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              transition: 'all 200ms ease', flexShrink: 0
+                            }}
+                            title={isMicOn ? 'Stop speaking' : 'Start speaking'}
+                          >
+                            {isMicOn ? <MicOff size={18} /> : <Mic size={18} />}
+                          </button>
+                          <input
+                            type="text"
+                            value={typedMessage}
+                            onChange={(e) => setTypedMessage(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSendTyped(); }}
+                            placeholder="Type a message to the candidate..."
+                            style={{
+                              flex: 1, padding: '0.7rem 1rem', borderRadius: 'var(--radius-pill)',
+                              border: '1px solid var(--border-subtle)', background: 'var(--bg-card)',
+                              color: 'var(--text-primary)', fontSize: '0.9rem'
+                            }}
+                          />
+                          <button
+                            onClick={handleSendTyped}
+                            style={{
+                              width: '42px', height: '42px', borderRadius: '50%', border: 'none',
+                              background: 'var(--brand-blue)', color: 'white', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                              transition: 'all 200ms ease'
+                            }}
+                          >
+                            <Send size={18} />
+                          </button>
+                        </div>
+                        {isMicOn && (
+                          <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--tier-red)' }}>
+                            <span style={{ width: '6px', height: '6px', background: 'var(--tier-red)', borderRadius: '50%', animation: 'blink 1s infinite' }}></span>
+                            Recording — speak into your microphone
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
 
-          {/* Rubric Telemetry Sidebar */}
-          <div style={{ padding: '1.5rem', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
-            <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Brain Telemetry</h4>
-            
-            {/* Score */}
-            <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-sm)', borderLeft: `3px solid ${rubricScore > 70 ? 'var(--tier-green)' : rubricScore > 40 ? 'var(--tier-amber)' : 'var(--tier-red)'}` }}>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Running Rubric Score</p>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                <span style={{ fontSize: '2rem', fontWeight: 700, transition: 'all 300ms ease' }}>{rubricScore}</span>
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>/ 100</span>
-              </div>
-              <div style={{ height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', marginTop: '0.5rem', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${rubricScore}%`, background: rubricScore > 70 ? 'var(--tier-green)' : rubricScore > 40 ? 'var(--tier-amber)' : 'var(--tier-red)', transition: 'width 500ms ease', borderRadius: '2px' }}></div>
-              </div>
-            </div>
+                  {/* Rubric Telemetry Sidebar */}
+                  <div style={{ padding: '1.5rem', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
+                    <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Brain Telemetry</h4>
 
-            {/* AI Status */}
-            <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-sm)' }}>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Twin Status</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ 
-                  width: '10px', height: '10px', borderRadius: '50%',
-                  background: aiStatus === 'deactivated' ? 'var(--text-muted)' : 'var(--tier-green)',
-                  boxShadow: aiStatus !== 'deactivated' ? '0 0 8px var(--tier-green)' : 'none'
-                }}></span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                  {aiStatus === 'deactivated' ? 'Paused (Human)' : 'Autonomous'}
-                </span>
-              </div>
-            </div>
+                    {/* Score */}
+                    <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-sm)', borderLeft: `3px solid ${rubricScore > 70 ? 'var(--tier-green)' : rubricScore > 40 ? 'var(--tier-amber)' : 'var(--tier-red)'}` }}>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Running Rubric Score</p>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '2rem', fontWeight: 700, transition: 'all 300ms ease' }}>{rubricScore}</span>
+                        <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>/ 100</span>
+                      </div>
+                      <div style={{ height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', marginTop: '0.5rem', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${rubricScore}%`, background: rubricScore > 70 ? 'var(--tier-green)' : rubricScore > 40 ? 'var(--tier-amber)' : 'var(--tier-red)', transition: 'width 500ms ease', borderRadius: '2px' }}></div>
+                      </div>
+                    </div>
 
-            {/* Live Signals */}
-            {/* Live Signals */}
-            <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-sm)', flex: 1 }}>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Live Signals</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {signals.length === 0 && (
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Awaiting candidate input...</p>
-                )}
-                {signals.map((sig, idx) => (
-                  <div key={idx} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', gap: '0.5rem', animation: 'fadeSlideIn 0.3s ease-out' }}>
-                    <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexShrink: 0, fontSize: '0.65rem' }}>{sig.time}</span>
-                    <span>{sig.text}</span>
+                    {/* AI Status */}
+                    <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-sm)' }}>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Twin Status</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          width: '10px', height: '10px', borderRadius: '50%',
+                          background: aiStatus === 'deactivated' ? 'var(--text-muted)' : 'var(--tier-green)',
+                          boxShadow: aiStatus !== 'deactivated' ? '0 0 8px var(--tier-green)' : 'none'
+                        }}></span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                          {aiStatus === 'deactivated' ? 'Paused (Human)' : 'Autonomous'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Live Signals */}
+                    {/* Live Signals */}
+                    <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-sm)', flex: 1 }}>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Live Signals</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {signals.length === 0 && (
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Awaiting candidate input...</p>
+                        )}
+                        {signals.map((sig, idx) => (
+                          <div key={idx} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', gap: '0.5rem', animation: 'fadeSlideIn 0.3s ease-out' }}>
+                            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexShrink: 0, fontSize: '0.65rem' }}>{sig.time}</span>
+                            <span>{sig.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                ))}
+
+                  {state.handoff_active && (
+                    <div style={{ marginTop: 'auto', background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--tier-red)' }}>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--tier-red)', fontWeight: 600, textAlign: 'center' }}>Twin Autonomy Paused</p>
+                    </div>
+                  )}
+                </div> {/* End Rubric Sidebar */}
+              </div> {/* End inner grid 1fr 300px */}
+            </div> {/* End main card */}
+          </div> {/* End left flex column (line 285) */}
+
+          {/* Right side metadata container (column 2 of grid) */}
+          <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--border-subtle)', overflowY: 'auto' }}>
+            <div style={{ padding: '1.25rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}>
+              <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Session Intelligence</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Proctoring ID</span>
+                  <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{activeSession?.code}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Connection</span>
+                  <span style={{ color: 'var(--tier-green)', fontWeight: 600 }}>Active (Encrypted)</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Latency</span>
+                  <span style={{ fontWeight: 600 }}>24ms</span>
+                </div>
               </div>
             </div>
-            
-            {state.handoff_active && (
-              <div style={{ marginTop: 'auto', background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--tier-red)' }}>
-                <p style={{ fontSize: '0.85rem', color: 'var(--tier-red)', fontWeight: 600, textAlign: 'center' }}>Twin Autonomy Paused</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-      
-      <style>{`
-        @keyframes pulse {
-          0% { opacity: 1; }
-          50% { opacity: 0.3; }
-          100% { opacity: 1; }
-        }
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        @keyframes fadeSlideIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </div>
+
+            <div style={{ flex: 1, padding: '1.25rem', border: '1px dashed var(--border-subtle)', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center' }}>AI Behavioral Signal Graph<br />(Coming Soon in v1.2)</p>
+            </div>
+          </div> {/* End Right Metadata Column (line 489) */}
+        </div> {/* End Grid Container (line 284) */}
+      </div> {/* End Monitor Wrapper (line 252) */}
+    )}
+
+    <style>{`
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.3; }
+        100% { opacity: 1; }
+      }
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+      @keyframes fadeSlideIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    `}</style>
+  </div>
   );
 }
