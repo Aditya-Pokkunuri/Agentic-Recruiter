@@ -1,10 +1,25 @@
+import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useDemo } from '../../context/DemoContext';
+import { Play } from 'lucide-react';
+import roomService from '../../services/RoomService';
 import ReactApexChart from 'react-apexcharts';
 
 export default function Dashboard() {
   const data = useData();
-  const { state } = useDemo();
+  const { state, dispatch, ACTIONS } = useDemo();
+  const navigate = useNavigate();
+
+  const handleStartInterview = (candidate) => {
+    const code = roomService.createRoom('recruiter');
+    dispatch({ type: ACTIONS.SET_ROOM, payload: code });
+    dispatch({ type: ACTIONS.SET_CONNECTION_STATUS, payload: 'waiting' });
+    dispatch({ 
+      type: ACTIONS.ADD_ACTIVE_ROOM, 
+      payload: { code, candidateName: candidate.name, role: candidate.role } 
+    });
+    navigate('/interviews');
+  };
 
   const firstName = state.user?.name?.split(' ')[0] || 'Sarah';
 
@@ -83,24 +98,28 @@ export default function Dashboard() {
           <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1.5rem', lineHeight: 1.3, letterSpacing: '-0.5px' }}>
             Top profiles secured in RuneGrid this week
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {data.candidates.filter(c => c.email_status === 'consented').map((candidate, i) => (
-              <div key={candidate.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--bg-card-hover)', borderRadius: 'var(--radius-pill)' }}>
+              <div key={candidate.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', background: 'var(--bg-card-hover)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${candidate.name}`} alt="avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#fff' }} />
+                  <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${candidate.name}`} alt="avatar" style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#fff', border: '1px solid var(--border-subtle)' }} />
                   <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>{candidate.name}</h4>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{candidate.name}</h4>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{candidate.role}</p>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                    {candidate.match_score}<span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>%</span>
-                  </div>
-                  <div style={{ background: 'white', color: 'var(--tier-green)', border: '1px solid var(--border-subtle)', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
-                    ✓
-                  </div>
-                </div>
+                <button 
+                  onClick={() => handleStartInterview(candidate)}
+                  style={{
+                    background: 'var(--brand-blue)', color: 'white', border: 'none',
+                    padding: '0.5rem 1rem', borderRadius: 'var(--radius-pill)',
+                    fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    boxShadow: '0 4px 12px rgba(0, 96, 255, 0.2)'
+                  }}
+                >
+                  <Play size={12} fill="white" /> START
+                </button>
               </div>
             ))}
           </div>

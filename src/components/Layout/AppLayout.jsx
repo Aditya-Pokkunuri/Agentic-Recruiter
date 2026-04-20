@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useDemo } from '../../context/DemoContext';
-import { LayoutDashboard, PhoneCall, Video, Send, Workflow, ShieldAlert, FileKey2, Search, Settings, HelpCircle, UserCircle2, Plus, BrainCircuit, Database } from 'lucide-react';
+import { LayoutDashboard, Users, PhoneCall, Video, Send, Workflow, ShieldAlert, FileKey2, Search, Settings, HelpCircle, UserCircle2, Plus, BrainCircuit, Database } from 'lucide-react';
+import roomService from '../../services/RoomService';
 
 export default function AppLayout() {
   const { state, dispatch, ACTIONS } = useDemo();
@@ -75,7 +76,7 @@ export default function AppLayout() {
           
           <div style={{ margin: '1rem 0', borderTop: '1px solid var(--border-subtle)' }}></div>
           <p style={{ padding: '0 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Ephemeral Layer</p>
-          <NavLink to="/pipeline" style={linkStyle}><Workflow size={20} /> Redis Sourcing TTL</NavLink>
+          <NavLink to="/pipeline" style={linkStyle}><Users size={20} /> Recruiting Pipeline</NavLink>
           <NavLink to="/consent" style={linkStyle}><FileKey2 size={20} /> Consent Gate</NavLink>
 
           <div style={{ margin: '1rem 0', borderTop: '1px solid var(--border-subtle)' }}></div>
@@ -100,7 +101,14 @@ export default function AppLayout() {
       
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         <header style={{ padding: '1.5rem 3rem', display: 'flex', justifyContent: 'flex-end', gap: '1.5rem', alignItems: 'center' }}>
-          <button onClick={() => dispatch({ type: ACTIONS.LOGOUT })} style={{ border: 'none', background: 'transparent', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {state.roomCode && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(14, 165, 233, 0.08)', padding: '0.4rem 0.85rem', borderRadius: 'var(--radius-pill)', border: '1px solid rgba(14, 165, 233, 0.2)', marginRight: 'auto' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: state.peerConnected ? 'var(--tier-green)' : 'var(--tier-amber)', boxShadow: state.peerConnected ? '0 0 6px var(--tier-green)' : 'none' }}></span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--brand-blue)' }}>{state.roomCode}</span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{state.peerConnected ? 'Connected' : 'Waiting...'}</span>
+            </div>
+          )}
+          <button onClick={() => { roomService.leave(); dispatch({ type: ACTIONS.LOGOUT }); }} style={{ border: 'none', background: 'transparent', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             Sign Out
           </button>
           <div style={{ padding: '0.5rem', borderRadius: '50%', background: 'var(--bg-card)', boxShadow: 'var(--shadow-card)', color: 'var(--text-secondary)', cursor: 'pointer', border: '1px solid var(--border-subtle)' }}>

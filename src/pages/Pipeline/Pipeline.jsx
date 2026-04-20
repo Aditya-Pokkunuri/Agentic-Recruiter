@@ -1,7 +1,29 @@
+import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
+import { useDemo } from '../../context/DemoContext';
+import { Play } from 'lucide-react';
+import roomService from '../../services/RoomService';
 
 export default function Pipeline() {
   const data = useData();
+  const { dispatch, ACTIONS, state } = useDemo();
+  const navigate = useNavigate();
+
+  const handleStartInterview = (candidate) => {
+    // Generate code
+    const code = roomService.createRoom('recruiter');
+    dispatch({ type: ACTIONS.SET_ROOM, payload: code });
+    dispatch({ type: ACTIONS.SET_CONNECTION_STATUS, payload: 'waiting' });
+    
+    // Switch to this room in context
+    dispatch({ 
+      type: ACTIONS.ADD_ACTIVE_ROOM, 
+      payload: { code, candidateName: candidate.name, role: candidate.role } 
+    });
+
+    // Jump to live interviews
+    navigate('/interviews');
+  };
 
   const stages = [
     { key: 'sourced', label: 'Sourced' },
@@ -55,6 +77,22 @@ export default function Pipeline() {
                       Last: {candidate.last_agent}
                     </span>
                   </div>
+                  
+                  {(stage.key === 'screened' || stage.key === 'interviewed') && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleStartInterview(candidate); }}
+                      style={{
+                        width: '100%', marginTop: '1rem', padding: '0.6rem', borderRadius: 'var(--radius-sm)',
+                        background: 'var(--brand-blue)', color: 'white', border: 'none', fontWeight: 700,
+                        fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', gap: '0.5rem', transition: 'all 200ms ease'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'}
+                      onMouseOut={(e) => e.currentTarget.style.background = 'var(--brand-blue)'}
+                    >
+                      <Play size={14} fill="white" /> START AI INTERVIEW
+                    </button>
+                  )}
                 </div>
               ))}
               

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Mail, CheckCircle2, XCircle, BrainCircuit, AlertCircle, PlaySquare, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { Mail, CheckCircle2, XCircle, BrainCircuit, AlertCircle, PlaySquare, ShieldAlert, ArrowLeft, Clock, MessageSquare } from 'lucide-react';
+import { useDemo } from '../../context/DemoContext';
 
 export default function Engage() {
+  const { state } = useDemo();
+  const [expandedTranscript, setExpandedTranscript] = useState(null);
   const [candidates] = useState({
     selected: [
       {
@@ -265,6 +268,68 @@ export default function Engage() {
   // Render Dashboard
   return (
     <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+
+      {/* Saved Real Interview Transcripts */}
+      {state.savedTranscripts && state.savedTranscripts.length > 0 && (
+        <div style={{ marginBottom: '3rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <div style={{ background: 'rgba(14, 165, 233, 0.1)', padding: '0.5rem', borderRadius: '50%' }}>
+              <MessageSquare size={24} color="var(--brand-blue)" />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.4rem' }}>Real Interview Transcripts</h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Transcripts from live AI Twin + human sessions</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {state.savedTranscripts.map((transcript) => (
+              <div key={transcript.id} style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+                <div 
+                  onClick={() => setExpandedTranscript(expandedTranscript === transcript.id ? null : transcript.id)}
+                  style={{ padding: '1.25rem 1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background 150ms ease' }}
+                  onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                  onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${transcript.candidateName?.split(' ')[0]}`} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'white', border: '2px solid var(--brand-blue)' }} />
+                    <div>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{transcript.candidateName}</h3>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{transcript.role} • {transcript.duration || 0}min</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Clock size={12} /> {new Date(transcript.date).toLocaleDateString()}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--brand-blue)', fontWeight: 600 }}>
+                      {transcript.messages?.length || 0} messages
+                    </span>
+                    <span style={{ transform: expandedTranscript === transcript.id ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 200ms ease' }}>▼</span>
+                  </div>
+                </div>
+                {expandedTranscript === transcript.id && (
+                  <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-subtle)', maxHeight: '400px', overflowY: 'auto', background: 'var(--bg-secondary)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {transcript.messages?.map((msg, idx) => (
+                        <div key={idx} style={{ padding: '0.75rem', background: msg.isSystem ? 'rgba(239,68,68,0.05)' : 'var(--bg-card)', borderRadius: '8px', borderLeft: `3px solid ${msg.sender === 'Candidate' ? 'var(--text-muted)' : msg.isSystem ? 'var(--tier-red)' : 'var(--brand-blue)'}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: msg.sender === 'Candidate' ? 'var(--text-muted)' : 'var(--brand-blue)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              {msg.isAI && <BrainCircuit size={10} />} {msg.sender}
+                            </span>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}</span>
+                          </div>
+                          <p style={{ fontSize: '0.9rem', lineHeight: 1.5, color: msg.isSystem ? 'var(--tier-red)' : 'var(--text-primary)' }}>{msg.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '3rem' }}>
         <div>
           <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Automated Post-Interview Decisions</h1>
