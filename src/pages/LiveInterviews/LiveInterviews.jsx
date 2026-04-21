@@ -161,6 +161,35 @@ export default function LiveInterviews() {
     };
   }, [activeSession]);
 
+  // Robustly sync video ref with stream whenever hasStream or the element changes
+  useEffect(() => {
+    if (hasStream && remoteVideoRef.current && roomService.remoteStream) {
+      console.log('[LiveInterviews] Syncing video srcObject with stream');
+      if (remoteVideoRef.current.srcObject !== roomService.remoteStream) {
+        remoteVideoRef.current.srcObject = roomService.remoteStream;
+      }
+    }
+  }, [hasStream, activeSession]);
+
+  // CONNECTION WATCHDOG: Force a PING if video hasn't appeared after 2.5 seconds
+  useEffect(() => {
+    if (!activeSession) return;
+    
+    let watchdogTimer;
+    if (!hasStream) {
+      console.log('[LiveInterviews] Watchdog armed. Waiting for stream...');
+      watchdogTimer = setTimeout(() => {
+        if (!hasStream) {
+          console.warn('[LiveInterviews] Watchdog triggered: No stream detected. Sending PING...');
+          setConnStatus('reconnecting');
+          roomService.sendSignal({ type: 'PING' });
+        }
+      }, 2500);
+    }
+    
+    return () => clearTimeout(watchdogTimer);
+  }, [hasStream, activeSession?.code]);
+
   const addSignal = useCallback((text) => {
     setSignals(prev => [...prev.slice(-6), { text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
   }, []);

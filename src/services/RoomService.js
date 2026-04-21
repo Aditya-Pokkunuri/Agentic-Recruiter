@@ -146,19 +146,33 @@ class RoomService {
       this.localStream.getTracks().forEach(track => {
         this.peerConnection.addTrack(track, this.localStream);
       });
+      if (isCaller) {
+        console.log('[RoomService] Tracks added, explicitly creating offer...');
+        this._createOffer();
+      }
     } else if (isCaller) {
+      console.log('[RoomService] No local stream yet, but isCaller=true. Creating initial offer...');
       this._createOffer();
     }
   }
 
   _createOffer() {
     if (!this.peerConnection) return;
+    
+    // Only create offer if we are in stable state to avoid m-line mismatch errors
+    if (this.peerConnection.signalingState !== 'stable') {
+      console.warn(`[RoomService] Skipping offer creation: signalingState is ${this.peerConnection.signalingState}`);
+      return;
+    }
+
     const offerOptions = { offerToReceiveAudio: true, offerToReceiveVideo: true };
     this.peerConnection.createOffer(offerOptions)
       .then(offer => this.peerConnection.setLocalDescription(offer))
       .then(() => {
         console.log('[RoomService] Sending OFFER');
-        this.sendSignal({ type: 'OFFER', sdp: this.peerConnection.localDescription });
+        // IMPORTANT: Convert RTCSessionDescription to JSON or plain object for BroadcastChannel compatibility
+        const sdpJson = this.peerConnection.localDescription.toJSON ? this.peerConnection.localDescription.toJSON() : this.peerConnection.localDescription;
+        this.sendSignal({ type: 'OFFER', sdp: sdpJson });
       })
       .catch(e => console.error('[RoomService] Offer creation error:', e));
   }
@@ -224,6 +238,12 @@ class RoomService {
       this.mode = 'local';
       this._initChannel();
       this._broadcast({ type: 'PEER_JOINED', roomCode: this.roomCode, role });
+    }
+
+    // AUTO-START: If we already have a local stream (e.g. refresh), start as soon as room is set
+    if (role === 'candidate' && this.localStream) {
+      console.log('[RoomService] Local stream already exists, auto-starting signaling after room join');
+      this.startStreaming(this.localStream);
     }
 
     return true;
@@ -455,9 +475,11 @@ class RoomService {
         .then(answer => this.peerConnection.setLocalDescription(answer))
         .then(() => {
           console.log('[RoomService] Sending ANSWER');
+          // IMPORTANT: Convert RTCSessionDescription to JSON or plain object for BroadcastChannel compatibility
+          const sdpJson = this.peerConnection.localDescription.toJSON ? this.peerConnection.localDescription.toJSON() : this.peerConnection.localDescription;
           this.sendSignal({
             type: 'ANSWER',
-            sdp: this.peerConnection.localDescription
+            sdp: sdpJson
           });
         })
         .catch(e => console.error('[RoomService] OFFER handling error:', e));
@@ -486,15 +508,15 @@ class RoomService {
       }
     } else if (data.type === 'PING') {
       console.log('[RoomService] PING received, responding with PONG');
-      this.sendSignal({ type: 'PONG' });
+      this.sendSignal({ type: 'PONG', role: this.role });
       // If we are the candidate, this is our cue to re-offer
       if (this.role === 'candidate' && this.localStream) {
-        console.log('[RoomService] Candidate re-offering stream due to PING');
+        console.log('[RoomService] Candidate restarting connection due to PING request');
         this.destroyPeerConnection();
         this._initPeer(true);
       }
     } else if (data.type === 'PONG') {
-      console.log('[RoomService] PONG received! Signaling path is ALIVE.');
+      console.log(`[RoomService] PONG received from ${data.role || 'peer'}! Signaling path is ALIVE.`);
     }
   }
 
