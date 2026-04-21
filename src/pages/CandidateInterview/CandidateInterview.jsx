@@ -22,6 +22,7 @@ export default function CandidateInterview() {
   const speechRef = useRef(null);
   const aiRef = useRef(null);
   const audioRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const transcriptEndRef = useRef(null);
   const lastFinalRef = useRef('');
   const candidatePendingRef = useRef(null);
@@ -173,7 +174,8 @@ export default function CandidateInterview() {
     if (response) {
       const aiMsg = { id: `ai-${Date.now()}`, sender: 'Sarah', text: response, timestamp: Date.now(), isFinal: true, isAI: true };
       handleSpeak(response, aiMsg);
-      roomService.sendAIResponse(response);
+      // Broadcast AI response to recruiter
+      roomService.sendTranscript(response, 'Sarah', true, false);
     }
   };
 
@@ -196,7 +198,8 @@ export default function CandidateInterview() {
       if (greeting) {
         const msg = { id: `ai-greet`, sender: 'Sarah', text: greeting, timestamp: Date.now(), isFinal: true, isAI: true };
         handleSpeak(greeting, msg);
-        roomService.sendAIResponse(greeting);
+        // Broadcast initial AI greeting to recruiter
+        roomService.sendTranscript(greeting, 'Sarah', true, false);
       }
     }, 2000);
 
@@ -232,7 +235,7 @@ export default function CandidateInterview() {
             if (response) {
               const aiMsg = { id: `ai-${Date.now()}`, sender: 'Sarah', text: response, timestamp: Date.now(), isFinal: true, isAI: true };
               handleSpeak(response, aiMsg);
-              roomService.sendAIResponse(response);
+              roomService.sendTranscript(response, 'Sarah', true, false);
             }
           }, 1500);
         }
@@ -285,12 +288,25 @@ export default function CandidateInterview() {
       }
     });
 
+    const unsubStream = roomService.on('stream', (stream) => {
+      console.log('[CandidateInterview] Received remote stream (recruiter voice)');
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = stream;
+      }
+    });
+
+    // Check if stream already arrived
+    if (roomService.remoteStream && remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = roomService.remoteStream;
+    }
+
     return () => {
       unsubAI();
       unsubTakeover();
       unsubTyped();
       unsubCandidateSpeech();
       unsubRecruiterSpeech();
+      unsubStream();
       if (candidatePendingRef.current) clearTimeout(candidatePendingRef.current);
       if (aiRef.current) aiRef.current.destroy();
     };
@@ -402,6 +418,7 @@ export default function CandidateInterview() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'var(--font-sans)' }}>
+      <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
       {/* Header */}
       <header style={{ padding: '1rem 2rem', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

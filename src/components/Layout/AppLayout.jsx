@@ -45,7 +45,7 @@ export default function AppLayout() {
           <div style={{ width: '32px', height: '32px', background: 'var(--text-primary)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'white', fontWeight: 800, fontSize: '1.2rem' }}>Q</span>
           </div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>Qalana.AI</h2>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>Agentic Recruiter</h2>
         </div>
         
         {/* Search Bar - like the screenshot */}
@@ -72,21 +72,21 @@ export default function AppLayout() {
           
           <p style={{ marginTop: '1rem', padding: '0 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Autonomous Agents</p>
           <NavLink to="/interviews" style={linkStyle}><Video size={20} /> Live Interviews</NavLink>
-          <NavLink to="/engage" style={linkStyle}><Send size={20} /> Qalana Engage</NavLink>
+          <NavLink to="/engage" style={linkStyle}><Send size={20} /> Engage</NavLink>
           
           <div style={{ margin: '1rem 0', borderTop: '1px solid var(--border-subtle)' }}></div>
-          <p style={{ padding: '0 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Ephemeral Layer</p>
-          <NavLink to="/pipeline" style={linkStyle}><Users size={20} /> Recruiting Pipeline</NavLink>
-          <NavLink to="/consent" style={linkStyle}><FileKey2 size={20} /> Consent Gate</NavLink>
+          <p style={{ padding: '0 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Talent Pipeline</p>
+          <NavLink to="/pipeline" style={linkStyle}><Users size={20} /> Candidate Pipeline</NavLink>
+          <NavLink to="/consent" style={linkStyle}><FileKey2 size={20} /> Candidate Privacy</NavLink>
 
           <div style={{ margin: '1rem 0', borderTop: '1px solid var(--border-subtle)' }}></div>
           <p style={{ padding: '0 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Intelligence Core</p>
-          <NavLink to="/twin" style={linkStyle}><BrainCircuit size={20} /> Digital Twin</NavLink>
+          <NavLink to="/twin" style={linkStyle}><BrainCircuit size={20} /> Sarah (AI Twin)</NavLink>
           <NavLink to="/knowledge" style={linkStyle}><Database size={20} /> Knowledge Hub</NavLink>
           
           <div style={{ margin: '1rem 0', borderTop: '1px solid var(--border-subtle)' }}></div>
-          <p style={{ padding: '0 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: '0.5rem' }}>RuneGrid View</p>
-          <NavLink to="/escalation" style={linkStyle}><ShieldAlert size={20} /> Escalations</NavLink>
+          <p style={{ padding: '0 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Security & Insights</p>
+          <NavLink to="/escalation" style={linkStyle}><ShieldAlert size={20} /> Manual Reviews</NavLink>
         </nav>
         
         <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>

@@ -13,6 +13,7 @@ export default function LiveInterviews() {
   const [transcript, setTranscript] = useState([]);
   const [typedMessage, setTypedMessage] = useState('');
   const [isMicOn, setIsMicOn] = useState(false);
+  const [recruiterStream, setRecruiterStream] = useState(null);
   const [interimText, setInterimText] = useState('');
   const [aiStatus, setAiStatus] = useState('offline');
   const [rubricScore, setRubricScore] = useState(0);
@@ -210,32 +211,45 @@ export default function LiveInterviews() {
     setTypedMessage('');
   };
 
-  const toggleRecruiterMic = useCallback(() => {
+  const toggleRecruiterMic = useCallback(async () => {
     if (!state.handoff_active) return;
     if (isMicOn) {
       if (speechRef.current) speechRef.current.stop();
+      if (recruiterStream) {
+        recruiterStream.getTracks().forEach(track => track.stop());
+        setRecruiterStream(null);
+      }
       setIsMicOn(false);
       setInterimText('');
     } else {
-      if (!speechRef.current) {
-        const speech = new SpeechService();
-        speechRef.current = speech;
-        speech.onResult = (text, isFinal) => {
-          if (isFinal) {
-            setInterimText('');
-            const msg = { id: `r-${Date.now()}`, sender: 'Sarah (Recruiter)', text, timestamp: Date.now(), isFinal: true };
-            setTranscript(prev => [...prev, msg]);
-            roomService.sendTranscript(text, 'Sarah (Recruiter)', true, false);
-          } else {
-            setInterimText(text);
-          }
-        };
-        speech.init();
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        setRecruiterStream(stream);
+        roomService.startStreaming(stream); // Send recruiter voice to candidate peer
+
+        if (!speechRef.current) {
+          const speech = new SpeechService();
+          speechRef.current = speech;
+          speech.onResult = (text, isFinal) => {
+            if (isFinal) {
+              setInterimText('');
+              const msg = { id: `r-${Date.now()}`, sender: 'Sarah (Recruiter)', text, timestamp: Date.now(), isFinal: true };
+              setTranscript(prev => [...prev, msg]);
+              roomService.sendTranscript(text, 'Sarah (Recruiter)', true, false);
+            } else {
+              setInterimText(text);
+            }
+          };
+          speech.init();
+        }
+        speechRef.current.start();
+        setIsMicOn(true);
+      } catch (err) {
+        console.error('Failed to get recruiter mic:', err);
+        alert('Could not access microphone. Please check permissions.');
       }
-      speechRef.current.start();
-      setIsMicOn(true);
     }
-  }, [isMicOn, state.handoff_active]);
+  }, [isMicOn, state.handoff_active, recruiterStream]);
 
   useEffect(() => {
     return () => {
@@ -340,7 +354,7 @@ export default function LiveInterviews() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
               {/* VIDEO FEED */}
-              <div style={{ background: '#0f172a', borderRadius: 'var(--radius-lg)', height: '240px', position: 'relative', overflow: 'hidden', border: '2px solid var(--border-subtle)' }}>
+              <div style={{ background: '#0f172a', borderRadius: 'var(--radius-lg)', height: '400px', position: 'relative', overflow: 'hidden', border: '2px solid var(--border-subtle)' }}>
                 <div style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 10, background: 'rgba(239, 68, 68, 0.9)', color: 'white', fontSize: '0.65rem', fontWeight: 800, padding: '0.3rem 0.6rem', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '0.4rem', letterSpacing: '1px' }}>
                   <div style={{ width: '8px', height: '8px', background: 'white', borderRadius: '50%', animation: 'pulse 1s infinite' }}></div>
                   LIVE FEED
@@ -350,7 +364,7 @@ export default function LiveInterviews() {
                   autoPlay
                   playsInline
                   muted
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 />
                 {!hasStream && (
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a' }}>

@@ -40,7 +40,7 @@ export default function Pipeline() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem' }}>Recruiting Pipeline</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Candidates are autonomously progressed by Qalana Agents.</p>
+        <p style={{ color: 'var(--text-muted)' }}>Candidates are autonomously progressed by Agentic Recruiter Agents.</p>
       </div>
 
       <div style={{ display: 'flex', gap: '1.5rem', flex: 1, overflowX: 'auto', paddingBottom: '1rem' }}>

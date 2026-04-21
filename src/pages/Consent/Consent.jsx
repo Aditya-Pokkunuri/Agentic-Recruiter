@@ -7,7 +7,7 @@ export default function Consent() {
     <div style={{ color: 'var(--text-primary)' }}>
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 700 }}>Candidate Consent & Privacy Portal</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>You are viewing the candidate experience. Qalana uses Ephemeral Enrichment Architecture.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>You are viewing the candidate experience. This platform uses Ephemeral Enrichment Architecture.</p>
       </div>
 
       {data.consents.map((consent) => (

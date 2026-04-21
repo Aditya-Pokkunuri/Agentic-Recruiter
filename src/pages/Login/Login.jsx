@@ -97,8 +97,8 @@ export default function Login() {
               <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto', border: '3px solid var(--tier-green)' }}>
                 <Check size={36} color="var(--tier-green)" />
               </div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--tier-green)', marginBottom: '0.5rem' }}>Candidate Connected!</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>Entering interview chamber...</p>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>Agentic Recruiter Connected!</h2>
+              <p style={{ color: 'var(--text-muted)' }}>Candidates are autonomously progressed by Agentic Recruiter Agents.</p>
             </div>
           ) : (
             /* Waiting State */
@@ -250,7 +250,7 @@ export default function Login() {
         <div style={{ width: '56px', height: '56px', background: 'var(--brand-blue)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
           <span style={{ color: 'white', fontWeight: 800, fontSize: '1.8rem' }}>Q</span>
         </div>
-        <h1 style={{ fontWeight: 800, fontSize: '2.5rem', color: 'var(--text-primary)', letterSpacing: '-1px' }}>Qalana.AI</h1>
+        <h1 style={{ fontWeight: 800, fontSize: '2.5rem', color: 'var(--text-primary)', letterSpacing: '-1px' }}>Agentic Recruiter</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', marginTop: '0.5rem' }}>Agentic Recruiter — Real-Time Interview</p>
       </div>
 

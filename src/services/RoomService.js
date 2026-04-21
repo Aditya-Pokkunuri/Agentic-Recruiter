@@ -9,7 +9,7 @@
  * Otherwise, fall back to BroadcastChannel.
  */
 
-const CHANNEL_NAME = 'qalana-interview-room';
+const CHANNEL_NAME = 'agentic-recruiter-proctoring';
 
 class RoomService {
   constructor() {

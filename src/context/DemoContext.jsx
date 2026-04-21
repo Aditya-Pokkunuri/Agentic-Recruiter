@@ -20,7 +20,7 @@ const ACTIONS = {
 };
 
 const getInitialState = () => {
-  const saved = sessionStorage.getItem('qalana_demo_state');
+  const saved = sessionStorage.getItem('agentic_recruiter_state');
   const defaults = {
     authenticated: false,
     user: null,
@@ -119,7 +119,7 @@ export function DemoProvider({ children }) {
   const [state, dispatch] = useReducer(demoReducer, null, getInitialState);
 
   useEffect(() => {
-    sessionStorage.setItem('qalana_demo_state', JSON.stringify(state));
+    sessionStorage.setItem('agentic_recruiter_state', JSON.stringify(state));
   }, [state]);
 
   return (

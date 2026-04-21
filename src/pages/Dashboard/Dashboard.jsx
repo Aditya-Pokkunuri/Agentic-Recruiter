@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useDemo } from '../../context/DemoContext';
-import { Play } from 'lucide-react';
+import { Play, Workflow } from 'lucide-react';
 import roomService from '../../services/RoomService';
 import ReactApexChart from 'react-apexcharts';
 
@@ -55,9 +55,9 @@ export default function Dashboard() {
   };
 
   const chartSeries = [
-    { name: 'Sourced to Redis (Ephemeral)', data: [450, 520, 480, 610, 590, 210, 340] },
-    { name: 'Consented & Vaulted (RuneGrid)', data: [120, 145, 130, 210, 195, 45, 80] },
-    { name: 'Purged via TTL (Destroyed)', data: [310, 350, 330, 380, 400, 150, 240] }
+    { name: 'Newly Sourced', data: [450, 520, 480, 610, 590, 210, 340] },
+    { name: 'Interview Ready', data: [120, 145, 130, 210, 195, 45, 80] },
+    { name: 'Onboarded/Archived', data: [310, 350, 330, 380, 400, 150, 240] }
   ];
 
   const TrendBadge = ({ value, label, positive = true, invertColors = false }) => {
@@ -86,7 +86,7 @@ export default function Dashboard() {
             Welcome back, {firstName}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', margin: '0.5rem 0 0 0' }}>
-            System architectures are nominal. Compliance health is optimal.
+            Your hiring pipelines are optimized. Sarah is actively screening 3 new candidates.
           </p>
         </div>
 
@@ -96,7 +96,7 @@ export default function Dashboard() {
             ✨ Vaulted Candidates Ready
           </div>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1.5rem', lineHeight: 1.3, letterSpacing: '-0.5px' }}>
-            Top profiles secured in RuneGrid this week
+            Top candidates ready for final technical review
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {data.candidates.filter(c => c.email_status === 'consented').map((candidate, i) => (
@@ -125,28 +125,50 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ATS WriteBack Payload Monitor */}
-        <div style={{ background: '#0f172a', padding: '1.5rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-subtle)' }}>
+        {/* Talent Sync & Privacy Card */}
+        <div style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-subtle)', position: 'relative', overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-              Minimal ATS Write-back
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ width: '32px', height: '32px', background: 'rgba(0, 96, 255, 0.1)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Workflow size={18} color="var(--brand-blue)" />
+              </div>
+              Secure Talent Sync
             </h3>
-            <span style={{ color: '#64748b', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><div style={{width:'6px',height:'6px',background:'#10b981',borderRadius:'50%'}}></div>LIVE</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--tier-green)', display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-pill)' }}>
+              <div style={{ width: '6px', height: '6px', background: 'var(--tier-green)', borderRadius: '50%' }}></div> ATS LINKED
+            </span>
           </div>
 
-          <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginBottom: '1rem' }}>Latest payload securely pushed to Employer Workday ATS instance. Notice enriched fields have explicitly been stripped.</p>
-          
-          <pre style={{ margin: 0, background: '#020617', padding: '1rem', borderRadius: '8px', color: '#38bdf8', fontSize: '0.8rem', overflowX: 'auto', fontFamily: 'var(--font-mono)' }}>
-{`{
-  "timestamp": "2026-04-16T13:42:01Z",
-  "candidate_name": "Arjun Mehta",
-  "verified_contact": "arjun.m@gmail.com",
-  "qalana_match": 87,
-  "runegrid_verification_badge": "https://vault.qalana.ai/v/arj89x",
-  "_stripped_fields": ["audio_session", "code_eval_video", "pdl_inferences"]
-}`}
-          </pre>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ padding: '1rem', background: 'var(--bg-primary)', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Latest Sync: Arjun Mehta</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>13:42:01Z</span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.7rem', background: 'var(--brand-blue)', color: 'white', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 700 }}>MATCH: 87%</span>
+                <span style={{ fontSize: '0.7rem', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 700 }}>VERIFIED ID</span>
+                <span style={{ fontSize: '0.7rem', background: 'rgba(14, 165, 233, 0.1)', color: 'var(--brand-blue)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 700 }}>TECH ASSESSMENT</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', padding: '0.5rem' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }}></div>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Privacy Shield Active</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }}></div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.03)', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                <p style={{ fontSize: '0.65rem', color: 'var(--tier-green)', fontWeight: 700, marginBottom: '0.25rem' }}>PERSISTED DATA</p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>Evaluation Scores, Technical Verdicts, and Consent Records.</p>
+              </div>
+              <div style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.03)', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+                <p style={{ fontSize: '0.65rem', color: 'var(--tier-red)', fontWeight: 700, marginBottom: '0.25rem' }}>REDACTED DATA</p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>Raw audio/video streams and sensitive PII erased.</p>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -158,30 +180,30 @@ export default function Dashboard() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
           
           <div style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-subtle)' }}>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.75rem', fontWeight: 500 }}>Active Redis Sessions <span style={{fontSize: '0.7rem', background:'#f1f5f9', padding:'0.2rem', borderRadius:'4px'}}>Unconsented</span></p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.75rem', fontWeight: 500 }}>Live Interviews <span style={{fontSize: '0.7rem', background:'#f1f5f9', padding:'0.2rem', borderRadius:'4px'}}>Active</span></p>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '2.4rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{data.ephemeralStats.redis_active_sessions}</span>
-              <TrendBadge value="5.4%" label="dropped" positive={false} invertColors={true} />
+              <TrendBadge value="5.4%" label="vs yesterday" positive={false} invertColors={true} />
             </div>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Pending TTL Expiration</p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Ongoing screening sessions</p>
           </div>
 
           <div style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-subtle)' }}>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.75rem', fontWeight: 500 }}>Profiles Vaulted in RuneGrid</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.75rem', fontWeight: 500 }}>Verified Talent Pool</p>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '2.4rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{data.ephemeralStats.items_vaulted_runegrid}</span>
-              <TrendBadge value="12" label="today" positive={true} />
+              <TrendBadge value="12" label="this week" positive={true} />
             </div>
-            <p style={{ fontSize: '0.75rem', color: 'var(--tier-green)', marginTop: '0.5rem' }}>Consent verification passed</p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--tier-green)', marginTop: '0.5rem' }}>Background checks cleared</p>
           </div>
 
           <div style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-subtle)' }}>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.75rem', fontWeight: 500 }}>Ephemeral Data Purged <span style={{fontSize: '0.7rem', background:'#f1f5f9', padding:'0.2rem', borderRadius:'4px'}}>GB</span></p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.75rem', fontWeight: 500 }}>Completed Reviews</p>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '2.4rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{data.ephemeralStats.data_purged_today_gb}</span>
-              <TrendBadge value="2.1" label="GB" positive={true} />
+              <TrendBadge value="2.1" label="k" positive={true} />
             </div>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Video/Audio streams destroyed</p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Candidates processed total</p>
           </div>
           
         </div>
@@ -191,7 +213,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v6h6"/></svg>
-              Ephemeral Enrichment Lifecycle
+              Hiring Pipeline Velocity
             </h3>
             <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>•••</span>
           </div>
@@ -201,9 +223,9 @@ export default function Dashboard() {
           </div>
           
           <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', border: '1px solid var(--border-subtle)' }}>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Automated cleanup routines are operating nominally. <br/><span style={{ color: '#ef4444', fontWeight: 500 }}>Scheduled purge of unconsented Redis memory running next at exactly 00:00 UTC.</span></p>
-            <button style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', padding: '0.5rem 1rem', borderRadius: 'var(--radius-pill)', fontWeight: 600, fontSize: '0.85rem', display: 'flex', gap: '0.5rem', alignItems: 'center', cursor: 'pointer' }}>
-              Force Purge Memory Now
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Candidate data anonymization is active. <br/><span style={{ color: 'var(--brand-blue)', fontWeight: 500 }}>Sarah is currently maintaining 100% compliance across all active roles.</span></p>
+            <button style={{ background: 'transparent', color: 'var(--brand-blue)', border: '1px solid var(--brand-blue)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-pill)', fontWeight: 600, fontSize: '0.85rem', display: 'flex', gap: '0.5rem', alignItems: 'center', cursor: 'pointer' }}>
+              Sync Pipeline Now
             </button>
           </div>
         </div>
@@ -216,7 +238,7 @@ export default function Dashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
-                System Compliance Health
+                Candidate Quality Health
               </h3>
             </div>
             
@@ -238,7 +260,7 @@ export default function Dashboard() {
             </div>
 
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '1.5rem', lineHeight: 1.4 }}>
-              Zero instances of unconsented sensitive data persisted to disk. Automated Ephemeral layer verified active.
+              Evaluation metrics are based on extracted persona heuristics. High-fidelity sync is verified.
             </p>
           </div>
 
@@ -254,20 +276,20 @@ export default function Dashboard() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ background: 'rgba(0, 96, 255, 0.1)', color: 'var(--brand-blue)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>QRecruiter</span>
+                  <span style={{ background: 'rgba(0, 96, 255, 0.1)', color: 'var(--brand-blue)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>Sarah (AI Twin)</span>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>2m ago</span>
                 </div>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.25rem' }}>Retell.ai stream destroyed</h4>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Screening with Priya Sharma completed. Raw audio memory erased successfully.</p>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.25rem' }}>Interview Session Completed</h4>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Screening with Priya Sharma completed. Candidate report generated and synced to ATS.</p>
               </div>
 
               <div style={{ position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--tier-green)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>Consent Gate</span>
+                  <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--tier-green)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>Persona Sync</span>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>35m ago</span>
                 </div>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.25rem' }}>Vault payload inserted</h4>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Arjun Mehta explicitly granted pipeline permissions. Synced to RuneGrid.</p>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.25rem' }}>Professional Heuristics Updated</h4>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Arjun Mehta's evaluation logic calibrated based on latest recruiter interview answers.</p>
               </div>
             </div>
           </div>

@@ -127,9 +127,9 @@ export const DataStore = {
     { id: "esc1", status: "pending" }
   ],
   ephemeralStats: {
-    redis_active_sessions: 247,
-    data_purged_today_gb: 12.4,
-    items_vaulted_runegrid: 89,
+    redis_active_sessions: 3,
+    data_purged_today_gb: 3452,
+    items_vaulted_runegrid: 1248,
     compliance_health: 100
   }
 };
