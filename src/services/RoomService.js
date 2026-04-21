@@ -28,10 +28,139 @@ class RoomService {
       aiResponse: [],
       connectionStatus: [],
       typedMessage: [],
+      stream: [],
     };
+    this.peerConnection = null;
+    this.localStream = null;
+    this.remoteStream = null;
     this._handleMessage = this._handleMessage.bind(this);
     this._reconnectTimer = null;
     this._shouldReconnect = false;
+    this.iceQueue = [];
+  }
+
+  /**
+   * Initialize WebRTC Peer Connection
+   */
+  _initPeer(isCaller = false) {
+    if (this.peerConnection) return;
+
+    const configuration = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' }
+      ],
+      iceCandidatePoolSize: 10,
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+      sdpSemantics: 'unified-plan'
+    };
+
+    this.peerConnection = new RTCPeerConnection(configuration);
+
+    // When we get a remote stream, emit it
+    this.peerConnection.ontrack = (event) => {
+      console.log('[RoomService] Received remote track:', event.track.kind);
+      if (event.streams && event.streams[0]) {
+        this.remoteStream = event.streams[0];
+      } else {
+        if (!this.remoteStream) {
+          this.remoteStream = new MediaStream();
+        }
+        this.remoteStream.addTrack(event.track);
+      }
+      this._emit('stream', this.remoteStream);
+    };
+
+    this.peerConnection.oniceconnectionstatechange = () => {
+      console.log(`[RoomService] [${this.role}] ICE state:`, this.peerConnection.iceConnectionState);
+      if (this.peerConnection.iceConnectionState === 'failed') {
+        console.warn('[RoomService] ICE failed. Retrying in 2s...');
+        setTimeout(() => {
+          if (this.role === 'candidate') this.startStreaming(this.localStream);
+          else this.sendSignal({ type: 'PING' });
+        }, 2000);
+      }
+    };
+
+    this.peerConnection.onicegatheringstatechange = () => {
+      console.log(`[RoomService] [${this.role}] ICE Gathering:`, this.peerConnection.iceGatheringState);
+    };
+
+    this.peerConnection.onconnectionstatechange = () => {
+      const state = this.peerConnection.connectionState;
+      console.log(`[RoomService] [${this.role}] Connection state:`, state);
+      this._emit('connectionStatus', { status: state });
+      
+      if (state === 'connected') {
+        if (this._iceWatchdog) clearTimeout(this._iceWatchdog);
+      }
+      
+      if (state === 'failed' || state === 'disconnected') {
+        console.log('[RoomService] Connection lost. Attempting recovery...');
+        if (this.role === 'candidate') {
+          setTimeout(() => this.startStreaming(this.localStream), 2000);
+        }
+      }
+    };
+
+    // Watchdog to restart ICE if it gets stuck
+    if (isCaller) {
+      if (this._iceWatchdog) clearTimeout(this._iceWatchdog);
+      this._iceWatchdog = setTimeout(() => {
+        if (this.peerConnection && this.peerConnection.connectionState !== 'connected') {
+          console.warn('[RoomService] ICE negotiation timed out. Restarting...');
+          this.destroyPeerConnection();
+          this._initPeer(true);
+        }
+      }, 8000);
+    }
+
+    this.peerConnection.onnegotiationneeded = () => {
+      if (isCaller) {
+        console.log('[RoomService] Negotiation needed, creating offer...');
+        this._createOffer();
+      }
+    };
+
+    // When we find local ICE candidates, send them
+    this.peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log(`[RoomService] [${this.role}] Local ICE found:`, event.candidate.type || 'unknown');
+        this.sendSignal({
+          type: 'ICE',
+          candidate: {
+            candidate: event.candidate.candidate,
+            sdpMid: event.candidate.sdpMid,
+            sdpMLineIndex: event.candidate.sdpMLineIndex,
+            usernameFragment: event.candidate.usernameFragment
+          }
+        });
+      }
+    };
+
+    if (this.localStream) {
+      console.log(`[RoomService] [${this.role}] Adding ${this.localStream.getTracks().length} tracks to peer`);
+      this.localStream.getTracks().forEach(track => {
+        this.peerConnection.addTrack(track, this.localStream);
+      });
+    } else if (isCaller) {
+      this._createOffer();
+    }
+  }
+
+  _createOffer() {
+    if (!this.peerConnection) return;
+    const offerOptions = { offerToReceiveAudio: true, offerToReceiveVideo: true };
+    this.peerConnection.createOffer(offerOptions)
+      .then(offer => this.peerConnection.setLocalDescription(offer))
+      .then(() => {
+        console.log('[RoomService] Sending OFFER');
+        this.sendSignal({ type: 'OFFER', sdp: this.peerConnection.localDescription });
+      })
+      .catch(e => console.error('[RoomService] Offer creation error:', e));
   }
 
   /**
@@ -177,7 +306,16 @@ class RoomService {
     switch (msg.type) {
       case 'PEER_JOINED':
         if (msg.role !== this.role) {
+          console.log('[RoomService] Peer joined:', msg.role);
           this._emit('peerJoined', { role: msg.role });
+          
+          // If we are candidate and recruiter joins/rejoins, re-send our stream
+          if (this.role === 'candidate' && this.localStream) {
+            console.log('[RoomService] Candidate re-offering stream to new recruiter');
+            this.destroyPeerConnection();
+            this._initPeer(true);
+          }
+
           // In local mode, send ack
           if (this.mode === 'local') {
             this._broadcast({ type: 'PEER_ACK', roomCode: this.roomCode, role: this.role });
@@ -208,10 +346,11 @@ class RoomService {
         break;
 
       case 'SIGNAL':
-        this._emit('signal', msg.data);
+        this._handleSignal(msg.data);
         break;
 
       case 'PEER_LEFT':
+        this.destroyPeerConnection();
         this._emit('peerLeft', { role: msg.role });
         break;
 
@@ -275,10 +414,106 @@ class RoomService {
   }
 
   /**
+   * Start streaming video/audio (Candidate side)
+   */
+  startStreaming(stream) {
+    console.log('[RoomService] startStreaming called, roomCode:', this.roomCode);
+    this.localStream = stream;
+    if (this.roomCode) {
+      // Clean slate — destroy any stale connection before creating a new one
+      this.destroyPeerConnection();
+      this._initPeer(true);
+    }
+  }
+
+  /**
+   * Handle WebRTC signaling messages
+   */
+  _handleSignal(data) {
+    if (!data || !data.type) return;
+    console.log(`[RoomService] [${this.role}] Signal received:`, data.type);
+
+    if (data.type === 'OFFER') {
+      console.log('[RoomService] Processing OFFER...');
+      this.destroyPeerConnection();
+      this._initPeer(false);
+      this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp))
+        .then(() => {
+          console.log('[RoomService] Remote description set, processing ICE queue:', this.iceQueue.length);
+          this.iceQueue.forEach(candidate => {
+            this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+              .catch(e => console.warn('[RoomService] ICE queue processing error:', e));
+          });
+          this.iceQueue = [];
+          
+          const answerOptions = {
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+          };
+          return this.peerConnection.createAnswer(answerOptions);
+        })
+        .then(answer => this.peerConnection.setLocalDescription(answer))
+        .then(() => {
+          console.log('[RoomService] Sending ANSWER');
+          this.sendSignal({
+            type: 'ANSWER',
+            sdp: this.peerConnection.localDescription
+          });
+        })
+        .catch(e => console.error('[RoomService] OFFER handling error:', e));
+    } else if (data.type === 'ANSWER') {
+      if (this.peerConnection) {
+        console.log('[RoomService] Setting remote ANSWER...');
+        this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp))
+          .then(() => {
+            console.log('[RoomService] Remote description (Answer) set, processing ICE queue:', this.iceQueue.length);
+            this.iceQueue.forEach(candidate => {
+              this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+                .catch(e => console.warn('[RoomService] ICE queue processing error:', e));
+            });
+            this.iceQueue = [];
+          })
+          .catch(e => console.error('[RoomService] ANSWER handling error:', e));
+      }
+    } else if (data.type === 'ICE') {
+      if (!data.candidate) return; // End of candidates
+      if (this.peerConnection && this.peerConnection.remoteDescription) {
+        this.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate))
+          .catch(e => console.warn('[RoomService] ICE candidate error:', e));
+      } else {
+        console.log('[RoomService] Peer not ready for ICE, queueing candidate');
+        this.iceQueue.push(data.candidate);
+      }
+    } else if (data.type === 'PING') {
+      console.log('[RoomService] PING received, responding with PONG');
+      this.sendSignal({ type: 'PONG' });
+      // If we are the candidate, this is our cue to re-offer
+      if (this.role === 'candidate' && this.localStream) {
+        console.log('[RoomService] Candidate re-offering stream due to PING');
+        this.destroyPeerConnection();
+        this._initPeer(true);
+      }
+    } else if (data.type === 'PONG') {
+      console.log('[RoomService] PONG received! Signaling path is ALIVE.');
+    }
+  }
+
+  destroyPeerConnection() {
+    if (this.peerConnection) {
+      console.log(`[RoomService] [${this.role}] Destroying peer connection`);
+      this.peerConnection.close();
+      this.peerConnection = null;
+    }
+    this.remoteStream = null;
+    this.iceQueue = [];
+  }
+
+  /**
    * Leave the room
    */
   leave() {
     this._broadcast({ type: 'PEER_LEFT', roomCode: this.roomCode, role: this.role });
+    this.destroyPeerConnection();
     this.destroy();
   }
 

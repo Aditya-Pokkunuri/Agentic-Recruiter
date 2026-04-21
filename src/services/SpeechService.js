@@ -153,7 +153,7 @@ class SpeechService {
           // Ignore — might already be running
         }
       }
-    }, 300);
+    }, 500);
   }
 
   /**

@@ -14,11 +14,13 @@ export default function LiveInterviews() {
   const [typedMessage, setTypedMessage] = useState('');
   const [isMicOn, setIsMicOn] = useState(false);
   const [interimText, setInterimText] = useState('');
-  const [aiStatus, setAiStatus] = useState('offline'); // 'offline' | 'listening' | 'thinking' | 'responding' | 'deactivated'
+  const [aiStatus, setAiStatus] = useState('offline');
   const [rubricScore, setRubricScore] = useState(0);
   const [signals, setSignals] = useState([]);
   const [elapsed, setElapsed] = useState('00:00');
-  const [activeSession, setActiveSession] = useState(null); // The one we are currently watching
+  const [activeSession, setActiveSession] = useState(null);
+  const [hasStream, setHasStream] = useState(false);
+  const [connStatus, setConnStatus] = useState('disconnected');
 
   const transcriptEndRef = useRef(null);
   const speechRef = useRef(null);
@@ -26,15 +28,14 @@ export default function LiveInterviews() {
   const startTimeRef = useRef(Date.now());
   const candidatePendingRef = useRef(null);
   const lastProcessedRef = useRef('');
+  const remoteVideoRef = useRef(null);
 
-  // Auto-scroll transcript
   useEffect(() => {
     if (transcriptEndRef.current) {
       transcriptEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [transcript, interimText]);
 
-  // Timer
   useEffect(() => {
     const timer = setInterval(() => {
       const diff = Math.floor((Date.now() - startTimeRef.current) / 1000);
@@ -45,7 +46,6 @@ export default function LiveInterviews() {
     return () => clearInterval(timer);
   }, []);
 
-  // Sync activeSession with state.roomCode if set
   useEffect(() => {
     if (state.roomCode && !activeSession) {
       const session = state.activeRooms.find(r => r.code === state.roomCode);
@@ -53,32 +53,23 @@ export default function LiveInterviews() {
     }
   }, [state.roomCode, state.activeRooms, activeSession]);
 
-  // Handle Switching Sessions
   const handleSwitchSession = (session) => {
     if (activeSession?.code === session.code) return;
-
-    // Clear current monitor
     setTranscript([]);
     setRubricScore(0);
     setSignals([]);
     setAiStatus('initializing');
-
-    // Switch Room
-    roomService.leave();
-    roomService.joinRoom(session.code, 'recruiter');
+    setHasStream(false);
+    setConnStatus('connecting');
+    // Just update state, the useEffect below will handle roomService.joinRoom
     dispatch({ type: ACTIONS.SET_ROOM, payload: session.code });
     setActiveSession(session);
-
-    // Re-init AI Twin for this context if needed
-    initAITwin(session);
   };
 
   const initAITwin = (session) => {
     if (aiRef.current) aiRef.current.destroy();
-
     const ai = new AITwinService();
     aiRef.current = ai;
-
     const initialized = ai.init({
       personaAnswers: state.personaAnswers,
       personaBlueprint: state.personaBlueprint,
@@ -87,7 +78,6 @@ export default function LiveInterviews() {
       candidateName: session.candidateName,
       targetRole: session.role || 'Senior Backend Engineer'
     });
-
     if (initialized) {
       setAiStatus('listening');
       addSignal(`Spectating session: ${session.candidateName} (${session.code})`);
@@ -96,18 +86,18 @@ export default function LiveInterviews() {
     }
   };
 
-  // Initialize AI Twin for initial room
   useEffect(() => {
-    if (state.roomCode && !aiRef.current) {
-      const session = state.activeRooms.find(r => r.code === state.roomCode);
-      if (session) initAITwin(session);
+    if (activeSession) {
+      console.log('[LiveInterviews] Joining room:', activeSession.code);
+      roomService.leave();
+      roomService.joinRoom(activeSession.code, 'recruiter');
+      roomService.sendSignal({ type: 'PING' });
+      initAITwin(activeSession);
     }
-  }, [state.roomCode]);
+  }, [activeSession?.code]);
 
-  // Listen for transcript events (both Candidate and AI)
   useEffect(() => {
     const unsubTranscript = roomService.on('transcript', (data) => {
-      // Add to UI transcript
       const msg = {
         id: data.id,
         sender: data.sender,
@@ -116,20 +106,22 @@ export default function LiveInterviews() {
         isFinal: data.isFinal,
         isAI: data.isAI
       };
+      if (data.isInterim && data.sender === 'Candidate') {
+        setInterimText(data.text);
+        return;
+      }
+      if (data.isFinal && data.sender === 'Candidate') {
+        setInterimText('');
+      }
 
-      // Update local transcript state if it's new
       setTranscript(prev => {
         if (prev.find(m => m.id === data.id)) return prev;
         return [...prev, msg];
       });
-
-      // If candidate spoke, update logic for the monitor
       if (data.sender === 'Candidate' && data.isFinal) {
         setRubricScore(prev => Math.min(100, prev + Math.floor(Math.random() * 8 + 3)));
         addSignal(`Candidate response received: "${data.text.substring(0, 30)}..."`);
       }
-
-      // If AI spoke, update status
       if (data.isAI) {
         setAiStatus('listening');
         addSignal('AI Twin responded.');
@@ -137,17 +129,38 @@ export default function LiveInterviews() {
     });
 
     const unsubAI = roomService.on('aiResponse', (data) => {
-      // Monitor AI responses coming from candidate side
       setAiStatus('responding');
     });
+
+    const unsubStream = roomService.on('stream', (stream) => {
+      console.log('[LiveInterviews] Received remote stream', stream);
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = stream;
+      }
+      setHasStream(true);
+    });
+
+    const unsubConn = roomService.on('connectionStatus', (data) => {
+      setConnStatus(data.status);
+    });
+
+    // Check if stream already exists (arrived before this effect ran)
+    if (roomService.remoteStream) {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = roomService.remoteStream;
+      }
+      setHasStream(true);
+      setConnStatus('connected');
+    }
 
     return () => {
       unsubTranscript();
       unsubAI();
+      unsubStream();
+      unsubConn();
     };
   }, [activeSession]);
 
-  // Add a signal
   const addSignal = useCallback((text) => {
     setSignals(prev => [...prev.slice(-6), { text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
   }, []);
@@ -227,12 +240,21 @@ export default function LiveInterviews() {
                 padding: '1rem', borderRadius: 'var(--radius-md)', cursor: 'pointer',
                 background: activeSession?.code === session.code ? 'rgba(0, 96, 255, 0.05)' : 'var(--bg-secondary)',
                 border: `1px solid ${activeSession?.code === session.code ? 'var(--brand-blue)' : 'var(--border-subtle)'}`,
-                transition: 'all 200ms ease'
+                transition: 'all 200ms ease',
+                position: 'relative'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                 <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{session.candidateName}</span>
-                <span style={{ fontSize: '0.7rem', background: '#0f172a', color: 'var(--brand-blue)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontFamily: 'var(--font-mono)' }}>{session.code}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {activeSession?.code === session.code && hasStream && (
+                    <span style={{ fontSize: '0.6rem', color: 'var(--tier-red)', background: 'rgba(239, 68, 68, 0.1)', padding: '0.1rem 0.3rem', borderRadius: '4px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <span style={{ width: '4px', height: '4px', background: 'var(--tier-red)', borderRadius: '50%', animation: 'blink 1s infinite' }}></span>
+                      LIVE
+                    </span>
+                  )}
+                  <span style={{ fontSize: '0.7rem', background: '#0f172a', color: 'var(--brand-blue)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontFamily: 'var(--font-mono)' }}>{session.code}</span>
+                </div>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{session.role}</p>
             </div>
@@ -250,7 +272,8 @@ export default function LiveInterviews() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Detailed Monitor View */}
+
+          {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Live Session: {activeSession.candidateName}</h1>
@@ -281,23 +304,36 @@ export default function LiveInterviews() {
             </div>
           </div>
 
+          {/* Main Two-Column Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '1.5rem' }}>
+
+            {/* LEFT COLUMN */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
               {/* VIDEO FEED */}
               <div style={{ background: '#0f172a', borderRadius: 'var(--radius-lg)', height: '240px', position: 'relative', overflow: 'hidden', border: '2px solid var(--border-subtle)' }}>
                 <div style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 10, background: 'rgba(239, 68, 68, 0.9)', color: 'white', fontSize: '0.65rem', fontWeight: 800, padding: '0.3rem 0.6rem', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '0.4rem', letterSpacing: '1px' }}>
                   <div style={{ width: '8px', height: '8px', background: 'white', borderRadius: '50%', animation: 'pulse 1s infinite' }}></div>
                   LIVE FEED
                 </div>
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <VideoIcon size={48} color="#334155" />
-                    <p style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.5rem' }}>Establishing secure Proctoring connection...</p>
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                {!hasStream && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <VideoIcon size={48} color="#334155" />
+                      <p style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.5rem' }}>Establishing secure Proctoring connection...</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Main Content */}
+              {/* Main Content Card */}
               <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
                 <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -312,7 +348,9 @@ export default function LiveInterviews() {
                   </div>
                 </div>
 
+                {/* Inner Grid: Transcript + Rubric */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', minHeight: '550px' }}>
+
                   {/* Transcript Panel */}
                   <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border-subtle)' }}>
 
@@ -342,11 +380,7 @@ export default function LiveInterviews() {
                         </div>
                       )}
                       {transcript.map((msg) => (
-                        <div key={msg.id} style={{
-                          paddingBottom: '0.75rem',
-                          borderBottom: '1px dashed var(--border-subtle)',
-                          animation: 'fadeSlideIn 0.3s ease-out'
-                        }}>
+                        <div key={msg.id} style={{ paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border-subtle)', animation: 'fadeSlideIn 0.3s ease-out' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
                             <span style={{
                               fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase',
@@ -425,6 +459,7 @@ export default function LiveInterviews() {
                       </div>
                     )}
                   </div>
+                  {/* END Transcript Panel */}
 
                   {/* Rubric Telemetry Sidebar */}
                   <div style={{ padding: '1.5rem', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
@@ -458,7 +493,6 @@ export default function LiveInterviews() {
                     </div>
 
                     {/* Live Signals */}
-                    {/* Live Signals */}
                     <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-sm)', flex: 1 }}>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Live Signals</p>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -473,45 +507,77 @@ export default function LiveInterviews() {
                         ))}
                       </div>
                     </div>
+
+                    {state.handoff_active && (
+                      <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--tier-red)' }}>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--tier-red)', fontWeight: 600, textAlign: 'center' }}>Twin Autonomy Paused</p>
+                      </div>
+                    )}
                   </div>
+                  {/* END Rubric Telemetry Sidebar */}
 
-                  {state.handoff_active && (
-                    <div style={{ marginTop: 'auto', background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--tier-red)' }}>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--tier-red)', fontWeight: 600, textAlign: 'center' }}>Twin Autonomy Paused</p>
-                    </div>
-                  )}
-                </div> {/* End Rubric Sidebar */}
-              </div> {/* End inner grid 1fr 300px */}
-            </div> {/* End main card */}
-          </div> {/* End left flex column (line 285) */}
+                </div>
+                {/* END Inner Grid */}
 
-          {/* Right side metadata container (column 2 of grid) */}
-          <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--border-subtle)', overflowY: 'auto' }}>
-            <div style={{ padding: '1.25rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}>
-              <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Session Intelligence</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Proctoring ID</span>
-                  <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{activeSession?.code}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Connection</span>
-                  <span style={{ color: 'var(--tier-green)', fontWeight: 600 }}>Active (Encrypted)</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Latency</span>
-                  <span style={{ fontWeight: 600 }}>24ms</span>
+              </div>
+              {/* END Main Content Card */}
+
+            </div>
+            {/* END LEFT COLUMN */}
+
+            {/* RIGHT COLUMN - Session Intelligence */}
+            <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--border-subtle)', overflowY: 'auto' }}>
+              <div style={{ padding: '1.25rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Session Intelligence</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Proctoring ID</span>
+                    <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{activeSession?.code}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Connection</span>
+                    <span style={{ 
+                      color: connStatus === 'connected' ? 'var(--tier-green)' : connStatus === 'failed' ? 'var(--tier-red)' : 'var(--tier-amber)', 
+                      fontWeight: 600,
+                      textTransform: 'capitalize'
+                    }}>
+                      {connStatus}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Latency</span>
+                    <span style={{ fontWeight: 600 }}>{connStatus === 'connected' ? `${Math.floor(Math.random() * 15 + 20)}ms` : '--'}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setConnStatus('reconnecting');
+                      roomService.sendSignal({ type: 'PING' });
+                    }}
+                    style={{
+                      marginTop: '0.5rem', width: '100%', padding: '0.5rem',
+                      background: 'transparent', border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)',
+                      fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                      transition: 'all 200ms ease'
+                    }}
+                  >
+                    Force Reconnect
+                  </button>
                 </div>
               </div>
-            </div>
 
-            <div style={{ flex: 1, padding: '1.25rem', border: '1px dashed var(--border-subtle)', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center' }}>AI Behavioral Signal Graph<br />(Coming Soon in v1.2)</p>
+              <div style={{ flex: 1, padding: '1.25rem', border: '1px dashed var(--border-subtle)', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center' }}>AI Behavioral Signal Graph<br />(Coming Soon in v1.2)</p>
+              </div>
             </div>
-          </div> {/* End Right Metadata Column (line 489) */}
-        </div> {/* End Grid Container (line 284) */}
-      </div> {/* End Monitor Wrapper (line 252) */}
-    )}
+            {/* END RIGHT COLUMN */}
+
+          </div>
+          {/* END Main Two-Column Grid */}
+
+        </div>
+      )}
+      {/* END activeSession conditional */}
 
     <style>{`
       @keyframes pulse {
@@ -528,6 +594,6 @@ export default function LiveInterviews() {
         to { opacity: 1; transform: translateY(0); }
       }
     `}</style>
-  </div>
+    </div>
   );
 }

@@ -24,6 +24,7 @@ export default function CandidateInterview() {
   const audioRef = useRef(null);
   const transcriptEndRef = useRef(null);
   const lastFinalRef = useRef('');
+  const candidatePendingRef = useRef(null);
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -41,6 +42,8 @@ export default function CandidateInterview() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
+        // Start streaming to recruiter
+        roomService.startStreaming(stream);
       } catch (err) {
         console.error("Error accessing media:", err);
       }
@@ -87,6 +90,7 @@ export default function CandidateInterview() {
         }
       } else {
         setInterimText(text);
+        roomService.sendTranscript(text, 'Candidate', false, true);
       }
     };
 
@@ -111,6 +115,11 @@ export default function CandidateInterview() {
       setTranscript(prev => [...prev, originalMsg]);
       dispatch({ type: ACTIONS.ADD_TRANSCRIPT_MESSAGE, payload: originalMsg });
       return;
+    }
+
+    // Pause speech recognition while AI speaks to avoid capturing TTS audio
+    if (speechRef.current && speechRef.current.isListening) {
+      speechRef.current.stop();
     }
 
     setAiThinking(true);
@@ -144,6 +153,14 @@ export default function CandidateInterview() {
       setStreamingAIResponse('');
       setTranscript(prev => [...prev, originalMsg]);
       dispatch({ type: ACTIONS.ADD_TRANSCRIPT_MESSAGE, payload: originalMsg });
+
+      // Resume speech recognition after AI finishes speaking
+      // Small delay to let TTS audio fully clear before re-activating mic
+      setTimeout(() => {
+        if (speechRef.current && isMicOn) {
+          speechRef.current.start();
+        }
+      }, 400);
     };
 
     window.speechSynthesis.speak(utterance);
@@ -183,24 +200,42 @@ export default function CandidateInterview() {
       }
     }, 2000);
 
-    // 2. Local AI Response Logic (Candidate hears self -> AI responds)
+    // Note: AI response is triggered directly from speech.onResult (handleAIStep).
+    // This listener only handles displaying incoming candidate transcripts from the room channel
+    // (relevant for network mode where candidate is on a different machine).
     const unsubCandidateSpeech = roomService.on('transcript', async (data) => {
-      // If we hear the candidate speak and Sarah isn't taken over
-      if (data.sender === 'Candidate' && data.isFinal && !state.handoff_active) {
-        // Debounce / Wait for candidate to stop
-        if (candidatePendingRef.current) clearTimeout(candidatePendingRef.current);
-        candidatePendingRef.current = setTimeout(async () => {
-          if (data.text === lastFinalRef.current) return;
-          lastFinalRef.current = data.text;
+      // Only process if this is a remote candidate (network mode)
+      // In local mode, speech.onResult already handles everything
+      if (data.sender === 'Candidate' && data.isFinal) {
+        // Check if we already have this message (from local speech.onResult)
+        if (data.text === lastFinalRef.current) return;
+        lastFinalRef.current = data.text;
 
-          setAiThinking(true);
-          const response = await aiRef.current.getResponse(data.text);
-          if (response) {
-            const aiMsg = { id: `ai-${Date.now()}`, sender: 'Sarah', text: response, timestamp: Date.now(), isFinal: true, isAI: true };
-            handleSpeak(response, aiMsg);
-            roomService.sendAIResponse(response);
-          }
-        }, 1500);
+        const msg = {
+          id: data.id,
+          sender: 'Candidate',
+          text: data.text,
+          timestamp: data.timestamp,
+          isFinal: true
+        };
+        setTranscript(prev => {
+          if (prev.find(m => m.id === data.id)) return prev;
+          return [...prev, msg];
+        });
+
+        // Trigger AI response for remote candidate speech
+        if (!state.handoff_active && aiRef.current) {
+          if (candidatePendingRef.current) clearTimeout(candidatePendingRef.current);
+          candidatePendingRef.current = setTimeout(async () => {
+            setAiThinking(true);
+            const response = await aiRef.current.getResponse(data.text);
+            if (response) {
+              const aiMsg = { id: `ai-${Date.now()}`, sender: 'Sarah', text: response, timestamp: Date.now(), isFinal: true, isAI: true };
+              handleSpeak(response, aiMsg);
+              roomService.sendAIResponse(response);
+            }
+          }, 1500);
+        }
       }
     });
 
@@ -256,6 +291,7 @@ export default function CandidateInterview() {
       unsubTyped();
       unsubCandidateSpeech();
       unsubRecruiterSpeech();
+      if (candidatePendingRef.current) clearTimeout(candidatePendingRef.current);
       if (aiRef.current) aiRef.current.destroy();
     };
   }, [dispatch, ACTIONS, state.handoff_active]);
@@ -311,6 +347,58 @@ export default function CandidateInterview() {
     const d = new Date(ts);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
+
+  const [joinCode, setJoinCode] = useState('');
+  const [isJoined, setIsJoined] = useState(!!state.roomCode);
+
+  const handleJoin = () => {
+    if (!joinCode.trim()) return;
+    const success = roomService.joinRoom(joinCode);
+    if (success) {
+      dispatch({ type: ACTIONS.SET_ROOM, payload: joinCode });
+      setIsJoined(true);
+      // Re-trigger stream start
+      if (streamRef.current) {
+        roomService.startStreaming(streamRef.current);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (state.roomCode && !isJoined) {
+      roomService.joinRoom(state.roomCode);
+      setIsJoined(true);
+    }
+  }, [state.roomCode, isJoined]);
+
+  if (!isJoined) {
+    return (
+      <div style={{ height: '100vh', background: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ background: 'var(--bg-card)', padding: '3rem', borderRadius: 'var(--radius-lg)', width: '400px', textAlign: 'center', border: '1px solid var(--border-subtle)' }}>
+          <div style={{ width: '64px', height: '64px', background: 'var(--brand-blue)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+            <span style={{ color: 'white', fontSize: '2rem', fontWeight: 800 }}>Q</span>
+          </div>
+          <h1 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '0.5rem' }}>Join Interview</h1>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Enter the interview code provided by your recruiter to begin.</p>
+          
+          <input 
+            type="text" 
+            placeholder="e.g. QAL-X7K2"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.currentTarget.value.toUpperCase())}
+            style={{ width: '100%', padding: '1rem', background: '#0f172a', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'white', fontSize: '1.2rem', textAlign: 'center', letterSpacing: '2px', marginBottom: '1.5rem', outline: 'none' }}
+          />
+          
+          <button 
+            onClick={handleJoin}
+            style={{ width: '100%', padding: '1rem', background: 'var(--brand-blue)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}
+          >
+            Enter Interview Room
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'var(--font-sans)' }}>
