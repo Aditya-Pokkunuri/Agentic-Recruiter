@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { UploadCloud, FileText, Globe, BookOpen, Search, CheckCircle2, LayoutGrid, List, Sparkles, Database, BrainCircuit, Loader2 } from 'lucide-react';
+import { UploadCloud, FileText, Globe, BookOpen, Search, CheckCircle2, LayoutGrid, List, Sparkles, Database, BrainCircuit, Loader2, Trash2 } from 'lucide-react';
 import MasterCaseStudio from './MasterCaseStudio';
 import { useDemo } from '../../context/DemoContext';
 
@@ -165,7 +165,18 @@ export default function KnowledgeHub() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                     <FileText size={14} /> {module.docs} Sources
                   </div>
-                  <div style={{ color: 'var(--brand-blue)', fontSize: '0.75rem', fontWeight: 700 }}>VIEW BLOCK</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); dispatch({ type: ACTIONS.REMOVE_KNOWLEDGE_MODULE, payload: module.id }); }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = 'var(--tier-amber)'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                      title="Delete Module"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                    <div style={{ color: 'var(--brand-blue)', fontSize: '0.75rem', fontWeight: 700 }}>VIEW BLOCK</div>
+                  </div>
                 </div>
               </div>
             )})}

@@ -17,6 +17,10 @@ const ACTIONS = {
   SAVE_INTERVIEW_TRANSCRIPT: 'SAVE_INTERVIEW_TRANSCRIPT',
   CLEAR_LIVE_TRANSCRIPT: 'CLEAR_LIVE_TRANSCRIPT',
   ADD_ACTIVE_ROOM: 'ADD_ACTIVE_ROOM',
+  SET_PERSONA_MANIFEST: 'SET_PERSONA_MANIFEST',
+  SET_PERSONA_TRAINING_PHASE: 'SET_PERSONA_TRAINING_PHASE',
+  REMOVE_KNOWLEDGE_MODULE: 'REMOVE_KNOWLEDGE_MODULE',
+  REMOVE_MASTER_CASE: 'REMOVE_MASTER_CASE',
 };
 
 const getInitialState = () => {
@@ -28,17 +32,11 @@ const getInitialState = () => {
     handoff_active: false,
     personaAnswers: {},
     personaBlueprint: null,
+    personaManifest: null,
+    personaTrainingPhase: 'idle',
     isTrained: false,
-    masterCases: [
-      { id: 'mc1', title: 'Autonomous Hire: Senior Platform Engineer', date: '2026-03-12', scenario: 'Aggressive growth required rapid technical vetting.', action: 'Expert filtering on system design depth.', outcome: 'Confirmed by CEO', efficiency: '+420%' }
-    ],
-    knowledgeModules: [
-      { id: 'm1', name: 'Fullstack Architecture', level: 'Master', docs: 124, icon: 'Globe', status: 'Active' },
-      { id: 'm2', name: 'React Internals & Optimization', level: 'Expert', docs: 82, icon: 'Sparkles', status: 'Active' },
-      { id: 'm3', name: 'DevOps & K8s Resilience', level: 'Interim', docs: 45, icon: 'Database', status: 'Syncing' },
-      { id: 'm4', name: 'Behavioral Psychology', level: 'Master', docs: 210, icon: 'BookOpen', status: 'Active' },
-      { id: 'm5', name: 'Data Privacy Laws (GDPR)', level: 'Expert', docs: 15, icon: 'CheckCircle2', status: 'Active' }
-    ],
+    masterCases: [],
+    knowledgeModules: [],
     // Real-time interview state
     roomCode: null,
     activeRooms: [], // Array of { code, candidateName }
@@ -66,17 +64,25 @@ function demoReducer(state, action) {
         handoff_active: false
       };
     case ACTIONS.LOGOUT:
-      return { ...getInitialState(), authenticated: false, user: null, role: null, handoff_active: false, roomCode: null, peerConnected: false, connectionStatus: 'idle', liveTranscript: [], savedTranscripts: state.savedTranscripts, personaAnswers: state.personaAnswers, personaBlueprint: state.personaBlueprint, isTrained: state.isTrained, masterCases: state.masterCases, knowledgeModules: state.knowledgeModules };
+      return { ...getInitialState(), authenticated: false, user: null, role: null, handoff_active: false, roomCode: null, peerConnected: false, connectionStatus: 'idle', liveTranscript: [], savedTranscripts: state.savedTranscripts, personaAnswers: state.personaAnswers, personaBlueprint: state.personaBlueprint, personaManifest: state.personaManifest, isTrained: state.isTrained, masterCases: state.masterCases, knowledgeModules: state.knowledgeModules };
     case ACTIONS.OVERRIDE_TWIN:
       return { ...state, handoff_active: true };
     case ACTIONS.SAVE_PERSONA:
       return { ...state, personaAnswers: { ...state.personaAnswers, ...action.payload } };
     case ACTIONS.COMPLETE_TRAINING:
       return { ...state, isTrained: true, personaBlueprint: action.payload };
+    case ACTIONS.SET_PERSONA_MANIFEST:
+      return { ...state, personaManifest: action.payload, isTrained: true };
+    case ACTIONS.SET_PERSONA_TRAINING_PHASE:
+      return { ...state, personaTrainingPhase: action.payload };
     case ACTIONS.ADD_MASTER_CASE:
       return { ...state, masterCases: [action.payload, ...state.masterCases] };
+    case ACTIONS.REMOVE_MASTER_CASE:
+      return { ...state, masterCases: state.masterCases.filter(mc => mc.id !== action.payload) };
     case ACTIONS.ADD_KNOWLEDGE_MODULE:
       return { ...state, knowledgeModules: [action.payload, ...state.knowledgeModules] };
+    case ACTIONS.REMOVE_KNOWLEDGE_MODULE:
+      return { ...state, knowledgeModules: state.knowledgeModules.filter(km => km.id !== action.payload) };
     
     // Real-time interview actions
     case ACTIONS.SET_ROOM:

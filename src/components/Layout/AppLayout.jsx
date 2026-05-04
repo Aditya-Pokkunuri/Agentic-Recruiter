@@ -38,7 +38,8 @@ export default function AppLayout() {
         display: 'flex', 
         flexDirection: 'column', 
         borderRight: '1px solid var(--border-subtle)',
-        zIndex: 10
+        zIndex: 10,
+        overflowY: 'auto'
       }}>
         {/* Logo Area */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', padding: '0 0.5rem' }}>
@@ -82,6 +83,7 @@ export default function AppLayout() {
           <div style={{ margin: '1rem 0', borderTop: '1px solid var(--border-subtle)' }}></div>
           <p style={{ padding: '0 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Intelligence Core</p>
           <NavLink to="/twin" style={linkStyle}><BrainCircuit size={20} /> Sarah (AI Twin)</NavLink>
+          <NavLink to="/journalist" style={linkStyle}><Video size={20} /> AI Journalist</NavLink>
           <NavLink to="/knowledge" style={linkStyle}><Database size={20} /> Knowledge Hub</NavLink>
           
           <div style={{ margin: '1rem 0', borderTop: '1px solid var(--border-subtle)' }}></div>
@@ -99,7 +101,14 @@ export default function AppLayout() {
         </div>
       </aside>
       
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+      <main style={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        overflowY: 'auto',
+        position: 'relative',
+        background: 'var(--bg-primary)'
+      }}>
         <header style={{ padding: '1.5rem 3rem', display: 'flex', justifyContent: 'flex-end', gap: '1.5rem', alignItems: 'center' }}>
           {state.roomCode && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(14, 165, 233, 0.08)', padding: '0.4rem 0.85rem', borderRadius: 'var(--radius-pill)', border: '1px solid rgba(14, 165, 233, 0.2)', marginRight: 'auto' }}>

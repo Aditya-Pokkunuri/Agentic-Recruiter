@@ -17,6 +17,7 @@ import Consent from './pages/Consent/Consent.jsx'
 import Dossier from './pages/Dossier/Dossier.jsx'
 import DigitalTwin from './pages/DigitalTwin/DigitalTwin.jsx'
 import KnowledgeHub from './pages/KnowledgeHub/KnowledgeHub.jsx'
+import Journalist from './pages/Journalist/Journalist.jsx'
 
 // A simple auth guard to protect routes
 function ProtectedRoute() {
@@ -44,6 +45,7 @@ const router = createHashRouter([
       { path: 'pipeline', element: <Pipeline /> },
       { path: 'escalation', element: <Escalation /> },
       { path: 'consent', element: <Consent /> },
+      { path: 'journalist', element: <Journalist /> },
       { path: 'dossier/:id', element: <Dossier /> },
       { path: 'twin', element: <DigitalTwin /> },
       { path: 'knowledge', element: <KnowledgeHub /> }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Terminal, CheckCircle2, Zap, BrainCircuit, X } from 'lucide-react';
+import { Plus, Terminal, CheckCircle2, Zap, BrainCircuit, X, Trash2 } from 'lucide-react';
 import { useDemo } from '../../context/DemoContext';
 
 export default function MasterCaseStudio() {
@@ -94,9 +94,20 @@ export default function MasterCaseStudio() {
                   <h4 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem' }}>{mcase.title}</h4>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Case Recorded on {mcase.date}</p>
                </div>
-               <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--brand-blue)' }}>{mcase.efficiency || 'N/A'}</span>
-                  <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Efficiency Lift</p>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                 <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--brand-blue)' }}>{mcase.efficiency || 'N/A'}</span>
+                    <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Efficiency Lift</p>
+                 </div>
+                 <button 
+                   onClick={() => dispatch({ type: ACTIONS.REMOVE_MASTER_CASE, payload: mcase.id })}
+                   style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                   onMouseEnter={(e) => e.currentTarget.style.color = 'var(--tier-amber)'}
+                   onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                   title="Delete Case"
+                 >
+                   <Trash2 size={20} />
+                 </button>
                </div>
             </div>
             

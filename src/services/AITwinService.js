@@ -20,7 +20,7 @@ class AITwinService {
   /**
    * Initialize the AI Twin with persona data from DemoContext
    */
-  init({ personaAnswers, personaBlueprint, knowledgeModules, userName, candidateName, targetRole }) {
+  init({ personaAnswers, personaBlueprint, personaManifest, knowledgeModules, userName, candidateName, targetRole }) {
     this.apiKey = import.meta.env.VITE_OPENAI_API_KEY;
     
     if (!this.apiKey) {
@@ -33,8 +33,7 @@ class AITwinService {
 
     // Build the system prompt from the recruiter's trained persona
     this.systemPrompt = this._buildSystemPrompt({
-      personaAnswers,
-      personaBlueprint,
+      personaManifest,
       knowledgeModules,
       userName,
       candidateName,
@@ -48,8 +47,8 @@ class AITwinService {
   /**
    * Build the system prompt using recruiter's persona training data
    */
-  _buildSystemPrompt({ personaAnswers = {}, personaBlueprint, knowledgeModules = [], userName, candidateName, targetRole }) {
-    const pa = personaAnswers;
+  _buildSystemPrompt({ personaManifest, knowledgeModules = [], userName, candidateName, targetRole }) {
+    const pm = personaManifest || {};
     
     return `You are Sarah, an advanced AI recruiting assistant (Digital Twin) conducting a live technical interview.
 
@@ -58,21 +57,20 @@ IDENTITY:
 - You are interviewing ${candidateName || 'the candidate'} for the role: ${targetRole || 'Senior Backend Engineer'}
 - You operate autonomously until the human recruiter decides to take over
 
-PERSONALITY & STYLE:
-${pa.q7 ? `- Communication Style: ${pa.q7}` : '- Communication Style: Professional, warm, and direct'}
-${pa.q8 ? `- Signature Phrases: ${pa.q8}` : ''}
-${pa.q9 ? `- How you pitch roles: ${pa.q9}` : ''}
+PERSONA MANIFEST (mirror this expert's identity):
+- Communication Style: ${pm.communication_style || 'Professional'}
+- Tone: ${pm.tone || 'Warm and direct'}
+- Thinking Pattern: ${pm.thinking_pattern || 'Systematic'}
+- Decision Style: ${pm.decision_style || 'Balanced'}
+- Energy: ${pm.energy_signature || 'Measured'}
+- Persuasion: ${pm.persuasion_approach || 'Evidence-based'}
+- Sentence Style: ${pm.sentence_structure || 'Mixed'}
+- Problem Framing: ${pm.problem_framing || 'Opportunity-first'}
 
-SCREENING METHODOLOGY:
-${pa.q3 ? `- First Action on New Req: ${pa.q3}` : ''}
-${pa.q4 ? `- Screening Process: ${pa.q4}` : ''}
-${pa.q5 ? `- 60-Second Resume Scan Focus: ${pa.q5}` : '- Focus: Experience depth, technical skills, and problem-solving'}
-${pa.q6 ? `- Key Screening Questions: ${pa.q6}` : ''}
+COMMUNICATION PATTERNS TO MIRROR:
+${(pm.signature_patterns || []).map(p => `- ${p}`).join('\n')}
 
-EVALUATION CRITERIA:
-${pa.q10 ? `- Tiebreaker Logic: ${pa.q10}` : '- Tiebreaker: Technical depth + cultural alignment'}
-${pa.q13 ? `- Red Flags: ${pa.q13}` : '- Red Flags: Inconsistent tenure, vague technical answers, no system design depth'}
-${pa.q14 ? `- Green Flags: ${pa.q14}` : '- Green Flags: Production experience, clear communication, strong system thinking'}
+CRITICAL: You must speak and think LIKE this expert. Do NOT add knowledge — only mirror their STYLE.
 
 KNOWLEDGE BASE:
 ${knowledgeModules.length > 0 ? `- Active Modules: ${knowledgeModules.map(m => m.name).join(', ')}` : '- General technical recruiting knowledge'}

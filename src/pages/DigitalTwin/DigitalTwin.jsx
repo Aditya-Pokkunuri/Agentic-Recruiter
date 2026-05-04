@@ -16,23 +16,17 @@ export default function DigitalTwin() {
 DNA SOURCE: ${state.user?.name || 'Authorized Recruiter'}
 STATUS: Persona Frame Active
 
-[CORE EVALUATION LOGIC]
-- Initial Touchpoint: ${state.personaAnswers.q3 || 'Standard outbound'}
-- 60-Sec Resume Scan: ${state.personaAnswers.q5 || 'Experience & Skill Density'}
-- Tiebreaker Logic: ${state.personaAnswers.q10 || 'Cultural and technical equilibrium'}
+[PERSONA MANIFEST]
+- Communication Style: ${state.personaManifest?.communication_style || 'Professional and direct'}
+- Tone: ${state.personaManifest?.tone || 'Warm and measured'}
+- Thinking Pattern: ${state.personaManifest?.thinking_pattern || 'Systematic and root-cause focused'}
+- Decision Style: ${state.personaManifest?.decision_style || 'Balanced and data-driven'}
+- Energy Signature: ${state.personaManifest?.energy_signature || 'High-intensity'}
+- Persuasion Approach: ${state.personaManifest?.persuasion_approach || 'Evidence-based'}
+- Problem Framing: ${state.personaManifest?.problem_framing || 'Opportunity-first'}
 
-[VOICE & TONE]
-- Interaction Energy: ${state.personaAnswers.q7 || 'Professional & Efficient'}
-- Key Phrases: ${state.personaAnswers.q8 || 'Standard recruitment nomenclature'}
-
-[DISQUALIFICATION HEURISTICS]
-- Hard Red Flags: ${state.personaAnswers.q13 || 'Inconsistent tenure, lack of core tech depth'}
-
-[NEGOTIATION STYLE]
-- Closing Strategy: ${state.personaAnswers.q16 || 'Empathetic Scarcity and Career Growth framing'}
-
-[CRISIS PROTOCOL]
-- Ghosting Handling: ${state.personaAnswers.q17 || 'Immediate cross-channel follow-up and pipeline pivot'}
+[SIGNATURE PATTERNS]
+${(state.personaManifest?.signature_patterns || []).map(p => `- ${p}`).join('\n')}
 
 [BASE KNOWLEDGE INDEX]
 - Active Modules: ${state.knowledgeModules.map(m => m.name).join(', ')}
@@ -133,7 +127,7 @@ STATUS: Persona Frame Active
         <StatCard icon={Activity} label="Cognitive Load" value="24" unit="%" color="14, 165, 233" />
         <StatCard icon={Clock} label="Latency" value="12" unit="ms" color="139, 92, 246" />
         <StatCard icon={Server} label="Neural Uptime" value="1" unit="Hrs" color="16, 185, 129" />
-        <StatCard icon={Heart} label="Empathy Index" value={state.personaBlueprint?.empathyLevel || 94} unit="%" color="236, 72, 113" />
+        <StatCard icon={Heart} label="Empathy Index" value={state.personaManifest?.tone?.toLowerCase().includes('empath') ? 92 : 85} unit="%" color="236, 72, 113" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
@@ -152,19 +146,18 @@ STATUS: Persona Frame Active
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div>
-              <h3 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Synthesized Traits</h3>
+              <h3 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Signature Patterns</h3>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {state.personaBlueprint?.traits.map(trait => (
+                {(state.personaManifest?.signature_patterns || []).map(trait => (
                   <span key={trait} style={{ padding: '0.5rem 1rem', background: 'rgba(14, 165, 233, 0.1)', color: 'var(--brand-blue)', borderRadius: 'var(--radius-pill)', border: '1px solid rgba(14, 165, 233, 0.2)', fontSize: '0.85rem', fontWeight: 600 }}>{trait}</span>
                 ))}
-                <span style={{ padding: '0.5rem 1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>Pattern-Matched</span>
               </div>
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '12px' }}>
-                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Logic Model</p>
-                <p style={{ fontWeight: 600 }}>{state.personaBlueprint?.logicCore}</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Thinking Pattern</p>
+                <p style={{ fontWeight: 600 }}>{state.personaManifest?.thinking_pattern || 'Evaluating...'}</p>
               </div>
               <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '12px' }}>
                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Voice Profile</p>
@@ -207,20 +200,20 @@ STATUS: Persona Frame Active
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
              <div style={{ padding: '1.5rem', background: '#0f172a', borderRadius: '16px', border: '1px solid #1e293b' }}>
-                <p style={{ fontSize: '0.7rem', color: 'var(--brand-blue)', textTransform: 'uppercase', marginBottom: '0.5rem', fontWeight: 700 }}>Recruiter Experience Archetype</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--brand-blue)', textTransform: 'uppercase', marginBottom: '0.5rem', fontWeight: 700 }}>Communication DNA</p>
                 <p style={{ color: 'white', fontSize: '1rem', lineHeight: 1.6 }}>
-                  "Highly specialized in niche technical sectors, with an emphasis on candidate resilience. Exhibits a <strong>Conversational-Assertive</strong> pitch style."
+                  "{state.personaManifest?.communication_style || 'Professional'} style with a <strong>{state.personaManifest?.tone || 'measured'}</strong> tone."
                 </p>
              </div>
 
              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '12px' }}>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Decision Tiebreaking</p>
-                  <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>Signal-Override Active</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Decision Style</p>
+                  <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>{state.personaManifest?.decision_style || 'Balanced'}</p>
                 </div>
                 <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '12px' }}>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Closing Influence</p>
-                  <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>Empathetic Scarcity</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Persuasion</p>
+                  <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>{state.personaManifest?.persuasion_approach || 'Evidence-based'}</p>
                 </div>
              </div>
 
